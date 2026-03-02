@@ -1,0 +1,18 @@
+version: "3.8"
+name: "BEOne"
+services:
+  db:
+    image: postgres:18
+    container_name: db_container
+
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD:  ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSGRES_DB}
+
+    ports: 
+      - "5432:5432"
+    volumes:
+      - postgres-data:/Users/foxbe/Documentos/Learning/nestjs/code-camp/
+volumes:
+ postgres-data:
