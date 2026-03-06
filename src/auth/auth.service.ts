@@ -6,18 +6,58 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
+import { promisify } from 'node:util';
 import { Prisma } from 'src/generated/prisma/client';
 import { UserService } from 'src/user/user.service';
-import { AuthDTO } from './dto/sign.dto';
 
 @Injectable()
 export class AuthService {
+  private static readonly SALT_BYTES = 16; // 128-bit salt
+  private static readonly KEY_LENGTH = 64; // 512-bit derived key
+  private static readonly scryptAsync = promisify(scrypt);
+
   constructor(
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
   ) {}
 
-  async signIn(username: string, password: string): Promise<AuthDTO> {
+  private async hashPassword(plainText: string): Promise<string> {
+    const salt = randomBytes(AuthService.SALT_BYTES);
+
+    const hash = (await AuthService.scryptAsync(
+      plainText,
+      salt,
+      AuthService.KEY_LENGTH,
+    )) as Buffer;
+    return `${salt.toString('hex')}:${hash.toString('hex')}`;
+  }
+  private async verifyPassword(
+    plainText: string,
+    stored: string,
+  ): Promise<boolean> {
+    const [saltHex, hashHex] = stored.split(':');
+
+    if (!saltHex || !hashHex) {
+      return false; // malformed stored value — fail safely
+    }
+
+    const salt = Buffer.from(saltHex, 'hex');
+    const storedHash = Buffer.from(hashHex, 'hex');
+    const candidateHash = (await AuthService.scryptAsync(
+      plainText,
+      salt,
+      AuthService.KEY_LENGTH,
+    )) as Buffer;
+
+    // Buffers must be the same length before timingSafeEqual
+    if (storedHash.length !== candidateHash.length) {
+      return false;
+    }
+
+    return timingSafeEqual(storedHash, candidateHash);
+  }
+  async signIn(username: string, password: string): Promise<{ jwt: string }> {
     try {
       const user = await this.userService.findUnique({
         where: { username },
@@ -37,17 +77,38 @@ export class AuthService {
       };
 
       return {
-        access_token: this.jwtService.sign(payload),
+        jwt: this.jwtService.sign(payload),
       };
     } catch {
       throw new InternalServerErrorException('Unexpected error during login');
     }
   }
 
-  async signUp(username: string, password: string): Promise<AuthDTO> {
+  async register(
+    username: string,
+    password: string,
+    email: string,
+  ): Promise<{ jwt: string }> {
     try {
+      const existing = await this.userService.findUnique({
+        where: { username },
+        select: { id: true }, // minimal projection — we only need existence
+      });
+
+      if (existing) {
+        // Generic message — do NOT reveal whether the username or email matched.
+        // (OWASP A07 — no user enumeration)
+        throw new ConflictException(
+          'User with provided credentials already exists',
+        );
+      }
+      const hashedPassword = await this.hashPassword(password);
       const user = await this.userService.createUnique({
-        data: { password: password, username: username },
+        data: {
+          passwordHash: hashedPassword,
+          username: username,
+          email: email,
+        },
       });
       console.log('⚙️ ~ AuthService ~ signUp ~ user:', user);
 
@@ -63,7 +124,7 @@ export class AuthService {
       const accessToken = this.jwtService.sign(payload);
 
       return {
-        access_token: accessToken,
+        jwt: accessToken,
       };
     } catch (error: unknown) {
       console.log('⚙️ ~ AuthService ~ signUp ~ error:', error);

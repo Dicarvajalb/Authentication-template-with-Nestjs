@@ -9,8 +9,85 @@ datasource db {
 }
 
 model User {
-  id       BigInt  @id @default(autoincrement())
-  username String  @unique
-  password String
-  role     String?
+  id                 String              @id @default(uuid())
+  email              String              @unique
+  username           String              @unique
+  passwordHash       String?             // null for Google-only accounts
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  refreshTokens      RefreshToken[] 
+  loginAttempt       LoginAttempt?
+  passwordResetTokens PasswordResetToken[]
+  googleAccount      GoogleAccount?
+  auditLogs          AuditLog[]
+}
+
+model GoogleAccount {
+  id         String   @id @default(uuid())
+  sub        String   @unique          // Google's unique user ID
+  email      String
+  name       String?
+  picture    String?
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+}
+
+model RefreshToken {
+  jti           String    @id           // UUID v4
+  familyId      String                  // UUID shared across rotations
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replacedByJti String?                 // set when rotated; non-null = already used
+  expiresAt     DateTime
+  createdAt     DateTime  @default(now())
+
+  @@index([userId])
+  @@index([familyId])
+}
+
+model RevokedToken {
+  jti       String   @id               // access token jti
+  expiresAt DateTime                   // used by cleanup cron
+  revokedAt DateTime @default(now())
+}
+
+model LoginAttempt {
+  id          String    @id @default(uuid())
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  failedCount Int       @default(0)
+  lockedUntil DateTime?
+  updatedAt   DateTime  @updatedAt
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  jti       String   @unique            // JWT jti — enforces single use
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model OAuthState {
+  id        String   @id @default(uuid())
+  state     String   @unique            // random UUID sent to Google
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  event     String                       // e.g. LOGIN_SUCCESS, LOGOUT, TOKEN_REPLAYED
+  provider  String?                      // 'credentials' | 'google'
+  ip        String?
+  userAgent String?
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([event])
 }

@@ -42,3 +42,38 @@ export { Prisma }
  * 
  */
 export type User = Prisma.UserModel
+/**
+ * Model GoogleAccount
+ * 
+ */
+export type GoogleAccount = Prisma.GoogleAccountModel
+/**
+ * Model RefreshToken
+ * 
+ */
+export type RefreshToken = Prisma.RefreshTokenModel
+/**
+ * Model RevokedToken
+ * 
+ */
+export type RevokedToken = Prisma.RevokedTokenModel
+/**
+ * Model LoginAttempt
+ * 
+ */
+export type LoginAttempt = Prisma.LoginAttemptModel
+/**
+ * Model PasswordResetToken
+ * 
+ */
+export type PasswordResetToken = Prisma.PasswordResetTokenModel
+/**
+ * Model OAuthState
+ * 
+ */
+export type OAuthState = Prisma.OAuthStateModel
+/**
+ * Model AuditLog
+ * 
+ */
+export type AuditLog = Prisma.AuditLogModel

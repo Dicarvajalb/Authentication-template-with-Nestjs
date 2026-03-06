@@ -6,31 +6,38 @@ import {
   Post,
 } from '@nestjs/common';
 
+import { AjvValidationPipe } from 'src/common/pipes/ajv.pipes';
 import { AuthService } from './auth.service';
-import { credentialsDTO } from './dto/register.dto';
+import type { RegisterDto } from './dto/register.dto';
 import { AuthDTO } from './dto/sign.dto';
 
 @Controller('auth')
 export class AuthController {
+  private readonly registerPipe: AjvValidationPipe<RegisterDto>;
+
   constructor(private readonly authService: AuthService) {}
 
-  @Post('signup')
-  async signUp(@Body() data: credentialsDTO): Promise<AuthDTO> {
+  @Post('register')
+  async register(@Body() data: RegisterDto): Promise<AuthDTO> {
     try {
-      const token = await this.authService.signUp(data.username, data.password);
-      console.log('⚙️ ~ AuthController ~ signUp ~ token:', token);
+      const serviceRes = await this.authService.register(
+        data.username,
+        data.password,
+        data.email,
+      );
+      console.log('⚙️ ~ AuthController ~ register ~ token:', serviceRes.jwt);
 
-      return token;
+      return { access_token: serviceRes.jwt };
     } catch (error) {
       throw new HttpException(error, HttpStatus.BAD_REQUEST);
     }
   }
   @Post('signin')
-  async signIn(@Body() data: credentialsDTO): Promise<AuthDTO> {
+  async signIn(@Body() data: RegisterDto): Promise<AuthDTO> {
     try {
       const token = await this.authService.signIn(data.username, data.password);
 
-      return token;
+      return { access_token: token.jwt };
     } catch (error) {
       throw new HttpException(error, HttpStatus.BAD_REQUEST);
     }
