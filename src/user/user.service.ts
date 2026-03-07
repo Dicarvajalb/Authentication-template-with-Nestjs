@@ -10,8 +10,10 @@ export class UserService {
     return this.prisma.user.findUnique(params);
   }
   async createUnique(params: Prisma.UserCreateArgs): Promise<User | null> {
-    console.log('⚙️ ~ UserService ~ createUnique ~ params:', params);
     return this.prisma.user.create(params);
+  }
+  async findFirst(params: Prisma.UserFindFirstArgs): Promise<User | null> {
+    return this.prisma.user.findFirst(params);
   }
 
   async users(params: {

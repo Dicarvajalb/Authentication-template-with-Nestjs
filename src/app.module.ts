@@ -15,7 +15,7 @@ import { UserModule } from './user/user.module';
     PrismaModule,
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: `.env.${process.env.NODE_ENV || 'develop'}`,
+      envFilePath: `.env.${process.env.NODE_ENV || 'development'}`,
     }),
   ],
   controllers: [AppController],

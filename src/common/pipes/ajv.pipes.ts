@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, PipeTransform } from '@nestjs/common';
 import type { JSONSchemaType } from 'ajv';
 import Ajv, { ValidateFunction } from 'ajv';
+import addErrors from 'ajv-errors';
 import addFormats from 'ajv-formats';
 
 // AJV instance is created ONCE at module load — not per request.
@@ -12,14 +13,12 @@ const ajv = new Ajv({
   coerceTypes: false, // never silently coerce "123" → 123
 });
 addFormats(ajv); // adds 'email', 'uuid', 'date-time' etc.
-
+addErrors(ajv);
 @Injectable()
 export class AjvValidationPipe<T> implements PipeTransform {
   private readonly validate: ValidateFunction<T>;
 
   constructor(schema: JSONSchemaType<T>) {
-    // Schema is compiled ONCE when the pipe is instantiated (at controller
-    // startup), not on every request. This is what makes AJV fast.
     this.validate = ajv.compile(schema);
   }
 
@@ -27,14 +26,14 @@ export class AjvValidationPipe<T> implements PipeTransform {
     const valid = this.validate(value);
 
     if (!valid) {
-      // Map AJV errors into a clean { field: [messages] } shape
-      const errors = (this.validate.errors || '').toString();
+      const errors = this.validate.errors?.reduce(
+        (prev, curr) => curr.message + '/n' + prev,
+        '',
+      );
 
       throw new BadRequestException({ message: errors });
     }
 
-    // AJV mutated `value` in-place (removeAdditional strips extra keys),
-    // and narrowed the type to T after validation.
     return value;
   }
 }

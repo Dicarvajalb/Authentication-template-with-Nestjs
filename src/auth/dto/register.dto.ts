@@ -5,22 +5,11 @@ export interface RegisterDto {
   username: string;
   password: string;
 }
-export function buildRegisterSchema(policy: {
-  minLength: number;
-  requireUppercase: boolean;
-  requireNumbers: boolean;
-  requireSymbols: boolean;
-}): JSONSchemaType<RegisterDto> {
+export function buildRegisterSchema(
+  errorMessage: string,
+  passwordRegex: string,
+): JSONSchemaType<RegisterDto> {
   // Build the password pattern dynamically from policy flags
-  const lookaheads: string[] = [];
-  if (policy.requireUppercase) lookaheads.push('(?=.*[A-Z])');
-  if (policy.requireNumbers) lookaheads.push('(?=.*[0-9])');
-  if (policy.requireSymbols) lookaheads.push('(?=.*[^A-Za-z0-9])');
-
-  const passwordPattern =
-    lookaheads.length > 0
-      ? `^${lookaheads.join('')}.{${policy.minLength},}$`
-      : `^.{${policy.minLength},}$`;
 
   return {
     type: 'object',
@@ -39,13 +28,8 @@ export function buildRegisterSchema(policy: {
       },
       password: {
         type: 'string',
-        minLength: policy.minLength,
-        pattern: passwordPattern,
-        errorMessage:
-          `Password must be at least ${policy.minLength} characters` +
-          `${policy.requireUppercase ? ', contain an uppercase letter' : ''}` +
-          `${policy.requireNumbers ? ', a number' : ''}` +
-          `${policy.requireSymbols ? ', a symbol' : ''}`,
+        pattern: passwordRegex,
+        errorMessage: errorMessage,
       },
     },
     required: ['email', 'username', 'password'],

@@ -22,7 +22,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  private async hashPassword(plainText: string): Promise<string> {
+  private static async hashPassword(plainText: string): Promise<string> {
     const salt = randomBytes(AuthService.SALT_BYTES);
 
     const hash = (await AuthService.scryptAsync(
@@ -32,7 +32,7 @@ export class AuthService {
     )) as Buffer;
     return `${salt.toString('hex')}:${hash.toString('hex')}`;
   }
-  private async verifyPassword(
+  private static async verifyPassword(
     plainText: string,
     stored: string,
   ): Promise<boolean> {
@@ -57,22 +57,22 @@ export class AuthService {
 
     return timingSafeEqual(storedHash, candidateHash);
   }
-  async signIn(username: string, password: string): Promise<{ jwt: string }> {
+  async login(email: string, password: string): Promise<{ jwt: string }> {
     try {
       const user = await this.userService.findUnique({
-        where: { username },
+        where: { email },
       });
 
       if (!user) {
         throw new UnauthorizedException('User not found');
       }
 
-      if (user.password !== password) {
+      if (await AuthService.verifyPassword(password, user.passwordHash || '')) {
         throw new UnauthorizedException('Invalid credentials');
       }
 
       const payload = {
-        sub: Number(user.id),
+        sub: user.id,
         username: user.username,
       };
 
@@ -90,8 +90,8 @@ export class AuthService {
     email: string,
   ): Promise<{ jwt: string }> {
     try {
-      const existing = await this.userService.findUnique({
-        where: { username },
+      const existing = await this.userService.findFirst({
+        where: { username, OR: [{ email }] },
         select: { id: true }, // minimal projection — we only need existence
       });
 
@@ -102,7 +102,7 @@ export class AuthService {
           'User with provided credentials already exists',
         );
       }
-      const hashedPassword = await this.hashPassword(password);
+      const hashedPassword = await AuthService.hashPassword(password);
       const user = await this.userService.createUnique({
         data: {
           passwordHash: hashedPassword,
@@ -110,14 +110,14 @@ export class AuthService {
           email: email,
         },
       });
-      console.log('⚙️ ~ AuthService ~ signUp ~ user:', user);
+      console.log('⚙️ ~ AuthService ~ register ~ user:', user);
 
       if (!user) {
         throw new InternalServerErrorException('User could not be created');
       }
 
       const payload = {
-        sub: Number(user.id), // safe for BigInt
+        sub: user.id, // safe for BigInt
         username: user.username,
       };
 
@@ -127,10 +127,6 @@ export class AuthService {
         jwt: accessToken,
       };
     } catch (error: unknown) {
-      console.log('⚙️ ~ AuthService ~ signUp ~ error:', error);
-      await this.userService.deleteUser({
-        where: { username: username },
-      });
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002' // Prisma unique constraint
