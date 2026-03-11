@@ -63,11 +63,10 @@ export class AuthService {
         where: { email },
       });
 
-      if (!user) {
-        throw new UnauthorizedException('User not found');
-      }
-
-      if (await AuthService.verifyPassword(password, user.passwordHash || '')) {
+      if (
+        !user ||
+        !(await AuthService.verifyPassword(password, user.passwordHash || ''))
+      ) {
         throw new UnauthorizedException('Invalid credentials');
       }
 
@@ -109,6 +108,11 @@ export class AuthService {
           username: username,
           email: email,
         },
+      });
+      const user2 = await this.userService.createUser({
+        email: email,
+        username: username,
+        password: hashedPassword,
       });
       console.log('⚙️ ~ AuthService ~ register ~ user:', user);
 

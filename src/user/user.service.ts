@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Prisma, User } from '../generated/prisma/browser';
+import { UserEntity } from './entities/user.entities';
+import { UserRepository } from './entities/user.repository';
 
 @Injectable()
-export class UserService {
+export class UserService implements UserRepository {
   constructor(private prisma: PrismaService) {}
 
   async findUnique(params: Prisma.UserFindUniqueArgs): Promise<User | null> {
@@ -33,24 +35,36 @@ export class UserService {
     });
   }
 
-  async createUser(data: Prisma.UserCreateInput): Promise<User> {
-    return this.prisma.user.create({
+  async createUser(data: UserEntity): Promise<UserEntity> {
+    const user = await this.prisma.user.create({
       data,
     });
-  }
 
-  async updateUser(params: {
-    where: Prisma.UserWhereUniqueInput;
-    data: Prisma.UserUpdateInput;
-  }): Promise<User> {
-    const { where, data } = params;
-    return this.prisma.user.update({
-      data,
-      where,
+    return {
+      email: user.email,
+      password: user.passwordHash || '',
+      username: user.username,
+    };
+  }
+  deleteUser(user: UserEntity): Promise<UserEntity> {
+    return Promise.resolve(user);
+  }
+  updateUser(user: UserEntity): Promise<UserEntity> {
+    return Promise.resolve(user);
+  }
+  async findUser(username: string, email: string): Promise<UserEntity> {
+    const user = await this.prisma.user.findFirst({
+      where: { username, OR: [{ email }] },
+      select: { id: true, email: true, passwordHash: true, username: true }, // minimal projection — we only need existence
     });
-  }
-
-  async deleteUser(params: Prisma.UserDeleteArgs): Promise<User> {
-    return this.prisma.user.delete(params);
+    if (user) {
+      return {
+        email: user.email,
+        password: user.passwordHash || '',
+        username: user.username,
+      };
+    } else {
+      throw new Error('Not Found');
+    }
   }
 }
