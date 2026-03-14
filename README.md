@@ -5,6 +5,16 @@
 
 **Intended Use:** Open-source GitHub template
 
+## SOLID map
+
+| Principle | Where                                                                                                                                                                      |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **S**RP   | One class, one job — `PasswordService` hashes, `TokenService` signs, `AuthService` orchestrates                                                                            |
+| **O**CP   | New auth strategy → new guard/service file. New role/resource → add a row to the map in `permission.service.ts`. Zero edits to existing code                               |
+| **L**SP   | `PrismaUserRepository` satisfies `IUserRepository`; swap in any alternative and nothing breaks                                                                             |
+| **I**SP   | 5 narrow interfaces (`IPasswordService`, `ITokenService`, `IPermissionService`, `IUserRepository`, `ITokenRepository`) — no consumer is forced to implement unused methods |
+| **D**IP   | `auth.module.ts` is the only place concrete classes are named. Every service & guard depends on a `Symbol` token, not a class                                              |
+
 ---
 
 ## 1. Overview
@@ -24,7 +34,7 @@ This module provides a reusable, production-grade **authentication layer** built
 | Caching           | `@nestjs/cache-manager`                                          |
 | Scheduled tasks   | `@nestjs/schedule`                                               |
 | Events            | `@nestjs/event-emitter`                                          |
-| Validation        | `class-validator`, `class-transformer` _(NestJS peer deps)_      |
+| Validation        | `class-validator`, `class-transformer` *(NestJS peer deps)*      |
 | Database          | `prisma`, `@prisma/client`                                       |
 | Password hashing  | Node.js built-in `crypto` (`bcrypt` + `randomBytes`)             |
 | Google OAuth HTTP | Node.js built-in `https` / NestJS `HttpModule` (`@nestjs/axios`) |
@@ -60,15 +70,15 @@ This module provides a reusable, production-grade **authentication layer** built
 | AUTH-02 | `AuthService.register()` MUST check for duplicate `email` and `username` via Prisma before proceeding. Conflicts MUST throw `ConflictException`.                                                                                           |
 | AUTH-03 | Passwords MUST be hashed using `crypto.scrypt()` with a unique `crypto.randomBytes(16)` salt per user. The stored value MUST be `salt:hash` (hex-encoded). Plain-text passwords MUST never be stored, logged, or included in any response. |
 | AUTH-04 | `PasswordService` MUST enforce a configurable `PasswordPolicy`: minimum length (default 10), at least one uppercase letter, one number, and one symbol. Violations MUST throw `BadRequestException` before any DB call.                    |
-| AUTH-05 | On success, `POST /auth/register` MUST return only non-sensitive user fields (`id`, `email`, `username`, `createdAt`). Password hash MUST be excluded via `@Exclude()` + `ClassSerializerInterceptor`.                                     |
+| AUTH-05 | On success, `POST /auth/register` MUST return only non-sensitive user fields (`id`, `email`, `username`, `createdAt`).                                                                                                                     |
 
 ### 2.2 Login
 
 | ID      | Requirement                                                                                                                                                                                                                                                   |
 | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| AUTH-06 | `AuthController` MUST expose `POST /auth/login` accepting a `LoginDto` (`email`, `password`).                                                                                                                                                                 |
-| AUTH-07 | `AuthService.login()` MUST retrieve the user by email, check lockout status, and perform password verification using `crypto.timingSafeEqual()` to prevent timing attacks _(OWASP A07)_.                                                                      |
-| AUTH-08 | On verification failure, `AuthService` MUST increment the `LoginAttempt.failedCount` for the user in PostgreSQL and return a generic `UnauthorizedException("Invalid credentials")` — no indication of whether the email exists _(OWASP A07)_.                |
+| AUTH-06 | `AuthController` MUST expose `POST /auth/login` accepting a `LoginDto` (`email`, `password`). And verify the valida                                                                                                                                           |
+| AUTH-07 | `AuthService.login()` MUST retrieve the user by email, check lockout status, and perform password verification using `crypto.timingSafeEqual()` to prevent timing attacks *(OWASP A07)*.                                                                      |
+| AUTH-08 | On verification failure, `AuthService` MUST increment the `LoginAttempt.failedCount` for the user in PostgreSQL and return a generic `UnauthorizedException("Invalid credentials")` — no indication of whether the email exists *(OWASP A07)*.                |
 | AUTH-09 | After `SecurityModuleOptions.lockout.maxAttempts` consecutive failures, the account MUST be locked for `lockout.durationMinutes`. Locked accounts MUST return `UnauthorizedException("Account temporarily locked")` without attempting password verification. |
 | AUTH-10 | On successful login, `LoginAttempt.failedCount` MUST be reset to zero and the token pair issued.                                                                                                                                                              |
 
@@ -76,11 +86,9 @@ This module provides a reusable, production-grade **authentication layer** built
 
 | ID      | Requirement                                                                                                                                                                                                                                                                                                                        |
 | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| AUTH-11 | `AuthController` MUST expose `PATCH /auth/password` (requires valid JWT) accepting `ChangePasswordDto` (`currentPassword`, `newPassword`).                                                                                                                                                                                         |
-| AUTH-12 | `AuthService.changePassword()` MUST re-verify `currentPassword` using `crypto.timingSafeEqual()` before applying the new hash.                                                                                                                                                                                                     |
-| AUTH-13 | On successful password change, ALL active refresh tokens for the user MUST be revoked (full session termination).                                                                                                                                                                                                                  |
-| AUTH-14 | `AuthController` MUST expose `POST /auth/forgot-password` accepting `{ email }`. A time-limited signed reset token (JWT, 15 min TTL, `purpose: "password-reset"` claim) MUST be generated and stored in `PasswordResetToken` table. The endpoint MUST always return HTTP 200 regardless of whether the email exists _(OWASP A07)_. |
-| AUTH-15 | `AuthController` MUST expose `POST /auth/reset-password` accepting `{ token, newPassword }`. `AuthService` MUST verify the reset token's signature, expiry, `purpose` claim, and single-use status before applying the new password hash and deleting the token record.                                                            |
+| AUTH-11 | `AuthController` MUST expose `PATCH /auth/change-password` accepting `{ currentPassword, newPassword }`.|
+| AUTH-12 | `AuthService.changePassword()` MUST re-verify `currentPassword` using `crypto.timingSafeEqual()` before applying the new hash. |
+| AUTH-13 | On successful password change, ALL active refresh tokens for the user MUST be revoked (full session termination).|
 
 ---
 
@@ -91,10 +99,10 @@ This module provides a reusable, production-grade **authentication layer** built
 | ID       | Requirement                                                                                                                                                                                                                                                                                  |
 | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | OAUTH-01 | `AuthController` MUST expose `GET /auth/google` that redirects the user to Google's authorization endpoint with scopes `openid email profile`, a `state` parameter (random UUID stored in `OAuthState` table), and `response_type=code`.                                                     |
-| OAUTH-02 | `AuthController` MUST expose `GET /auth/google/callback` that receives `code` and `state` from Google. `OAuthService` MUST validate that `state` matches a record in `OAuthState` and that it has not expired (TTL: 10 minutes) before proceeding _(CSRF protection, OWASP A01)_.            |
-| OAUTH-03 | `OAuthService` MUST exchange the authorization `code` for tokens by making a server-side `POST` to `https://oauth2.googleapis.com/token` using `@nestjs/axios`. Client credentials (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`) MUST come from `ConfigService` _(OWASP A02)_.                |
+| OAUTH-02 | `AuthController` MUST expose `GET /auth/google/callback` that receives `code` and `state` from Google. `OAuthService` MUST validate that `state` matches a record in `OAuthState` and that it has not expired (TTL: 10 minutes) before proceeding *(CSRF protection, OWASP A01)*.            |
+| OAUTH-03 | `OAuthService` MUST exchange the authorization `code` for tokens by making a server-side `POST` to `https://oauth2.googleapis.com/token` using `@nestjs/axios`. Client credentials (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`) MUST come from `ConfigService` *(OWASP A02)*.                |
 | OAUTH-04 | `OAuthService` MUST retrieve the user's profile by calling `https://www.googleapis.com/oauth2/v3/userinfo` with the access token obtained in OAUTH-03. Only `sub`, `email`, `name`, and `picture` fields MUST be consumed.                                                                   |
-| OAUTH-05 | Google's ID token returned in the token exchange MUST be verified using Google's public keys fetched from `https://www.googleapis.com/oauth2/v3/certs` via `@nestjs/jwt`. The `aud` claim MUST match `GOOGLE_CLIENT_ID` and `iss` MUST be `accounts.google.com` _(OWASP A08)_.               |
+| OAUTH-05 | Google's ID token returned in the token exchange MUST be verified using Google's public keys fetched from `https://www.googleapis.com/oauth2/v3/certs` via `@nestjs/jwt`. The `aud` claim MUST match `GOOGLE_CLIENT_ID` and `iss` MUST be `accounts.google.com` *(OWASP A08)*.               |
 | OAUTH-06 | `OAuthService` MUST implement a **find-or-create** strategy: if a `GoogleAccount` record with the given `sub` exists, link to the existing user; otherwise create a new `User` with `passwordHash = null` and create the `GoogleAccount` record.                                             |
 | OAUTH-07 | A user MUST be able to link a Google account to an existing credential-based account if they are already authenticated (via `POST /auth/google/link` with a valid JWT). `OAuthService` MUST prevent linking a Google account already associated with a different user (`ConflictException`). |
 | OAUTH-08 | On successful Google login/signup, the same JWT access + refresh token pair flow used for credential login MUST be applied — no separate session mechanism for OAuth users.                                                                                                                  |
@@ -110,19 +118,19 @@ This module provides a reusable, production-grade **authentication layer** built
 | ID     | Requirement                                                                                                                                                                                                                      |
 | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | JWT-01 | `TokenService` MUST issue two tokens on every successful authentication: an **Access Token** (default TTL: 15 min) and a **Refresh Token** (default TTL: 7 days) using `@nestjs/jwt`.                                            |
-| JWT-02 | The module MUST use **RS256** (asymmetric) signing by default. Private key signs tokens; public key verifies them. HS256 MUST be available as an opt-in for environments where key management is unavailable _(OWASP A02)_.      |
-| JWT-03 | Access Token payload MUST contain only: `sub` (userId), `jti` (UUID v4), `iat`, `exp`, `iss` (configurable issuer string), `aud` (configurable audience string). **No email, roles, or PII in the payload** _(OWASP A02)_.       |
-| JWT-04 | Refresh Token payload MUST contain: `sub`, `jti`, `iat`, `exp`, `iss`, `type: "refresh"`. The `type` claim MUST be checked during refresh to prevent access tokens from being used as refresh tokens _(token confusion attack)_. |
+| JWT-02 | The module MUST use **RS256** (asymmetric) signing by default. Private key signs tokens; public key verifies them. HS256 MUST be available as an opt-in for environments where key management is unavailable *(OWASP A02)*.      |
+| JWT-03 | Access Token payload MUST contain only: `sub` (userId), `jti` (UUID v4), `iat`, `exp`, `iss` (configurable issuer string), `aud` (configurable audience string). **No email, roles, or PII in the payload** *(OWASP A02)*.       |
+| JWT-04 | Refresh Token payload MUST contain: `sub`, `jti`, `iat`, `exp`, `iss`, `type: "refresh"`. The `type` claim MUST be checked during refresh to prevent access tokens from being used as refresh tokens *(token confusion attack)*. |
 | JWT-05 | All JWT signing keys/secrets MUST be loaded from `ConfigService`. The module MUST throw at startup if required key environment variables are absent.                                                                             |
 
 ### 4.2 Token Validation
 
 | ID     | Requirement                                                                                                                                                                                                                                     |
 | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| JWT-06 | `TokenService.verifyAccessToken()` MUST validate: RS256 signature, `exp`, `iss`, `aud`, and absence of `jti` in the `RevokedToken` table — in that order. Any failure MUST throw `UnauthorizedException` _(OWASP A08)_.                         |
-| JWT-07 | `JwtAuthGuard` MUST extract the Bearer token exclusively from the `Authorization: Bearer <token>` header. Tokens in query strings or request bodies MUST be rejected _(OWASP A01)_.                                                             |
-| JWT-08 | `JwtAuthGuard` MUST NOT accept tokens with `alg: none` or any algorithm other than the configured one. The `algorithms` option in `JwtService.verifyAsync()` MUST be explicitly set _(algorithm confusion attack)_.                             |
-| JWT-09 | `TokenService` MUST check the `RevokedToken` table on every access token validation. The revocation lookup MUST use `@nestjs/cache-manager` (in-memory, TTL = access token TTL) to avoid a DB hit on every request _(performance + OWASP A08)_. |
+| JWT-06 | `TokenService.verifyAccessToken()` MUST validate: RS256 signature, `exp`, `iss`, `aud`, and absence of `jti` in the `RevokedToken` table — in that order. Any failure MUST throw `UnauthorizedException` *(OWASP A08)*.                         |
+| JWT-07 | `JwtAuthGuard` MUST extract the Bearer token exclusively from the `Authorization: Bearer <token>` header. Tokens in query strings or request bodies MUST be rejected *(OWASP A01)*.                                                             |
+| JWT-08 | `JwtAuthGuard` MUST NOT accept tokens with `alg: none` or any algorithm other than the configured one. The `algorithms` option in `JwtService.verifyAsync()` MUST be explicitly set *(algorithm confusion attack)*.                             |
+| JWT-09 | `TokenService` MUST check the `RevokedToken` table on every access token validation. The revocation lookup MUST use `@nestjs/cache-manager` (in-memory, TTL = access token TTL) to avoid a DB hit on every request *(performance + OWASP A08)*. |
 
 ### 4.3 Token Refresh & Rotation
 
@@ -131,7 +139,7 @@ This module provides a reusable, production-grade **authentication layer** built
 | JWT-10 | `AuthController` MUST expose `POST /auth/refresh` accepting the refresh token (from `Authorization: Bearer` header or `httpOnly` cookie, configurable).                                                                                                                                                                       |
 | JWT-11 | `TokenService.refreshTokens()` MUST verify the refresh token's signature, expiry, `type: "refresh"` claim, and presence in the `RefreshToken` PostgreSQL table.                                                                                                                                                               |
 | JWT-12 | **Refresh token rotation MUST be enforced**: on every valid refresh, the old `RefreshToken` row MUST be deleted and a new token pair issued in a single Prisma transaction.                                                                                                                                                   |
-| JWT-13 | **Token family invalidation MUST be implemented**: each `RefreshToken` row MUST carry a `familyId` (UUID assigned at first login). If a refresh token that has already been rotated is presented (replay attack), ALL tokens in that family MUST be immediately revoked and the user forced to re-authenticate _(OWASP A07)_. |
+| JWT-13 | **Token family invalidation MUST be implemented**: each `RefreshToken` row MUST carry a `familyId` (UUID assigned at first login). If a refresh token that has already been rotated is presented (replay attack), ALL tokens in that family MUST be immediately revoked and the user forced to re-authenticate *(OWASP A07)*. |
 | JWT-14 | `RefreshToken` records MUST store: `jti`, `familyId`, `userId`, `expiresAt`, `createdAt`, `replacedByJti` (nullable). `replacedByJti` enables detection of replayed rotated tokens.                                                                                                                                           |
 
 ### 4.4 Token Revocation & Logout
@@ -146,7 +154,7 @@ This module provides a reusable, production-grade **authentication layer** built
 
 | ID     | Requirement                                                                                                                                                                            |
 | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| JWT-18 | When `SecurityModuleOptions.cookieTransport = true`, the refresh token MUST be set as an `httpOnly`, `secure`, `sameSite: 'strict'` cookie with `path: '/auth/refresh'` _(OWASP A02)_. |
+| JWT-18 | When `SecurityModuleOptions.cookieTransport = true`, the refresh token MUST be set as an `httpOnly`, `secure`, `sameSite: 'strict'` cookie with `path: '/auth/refresh'` *(OWASP A02)*. |
 | JWT-19 | When cookie transport is active, `POST /auth/refresh` MUST read the refresh token from the cookie only, not from the request body.                                                     |
 | JWT-20 | When cookie transport is active, `POST /auth/logout` MUST clear the refresh token cookie in addition to revoking tokens.                                                               |
 
@@ -158,29 +166,29 @@ This module provides a reusable, production-grade **authentication layer** built
 
 | ID     | Requirement                                                                                                                                                                                                                            |
 | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| SEC-01 | `@nestjs/throttler` MUST be applied to `POST /auth/login`, `POST /auth/register`, `POST /auth/refresh`, `POST /auth/forgot-password`, and `GET /auth/google` with independently configurable TTL and limit per endpoint _(OWASP A07)_. |
+| SEC-01 | `@nestjs/throttler` MUST be applied to `POST /auth/login`, `POST /auth/register`, `POST /auth/refresh`, `POST /auth/forgot-password`, and `GET /auth/google` with independently configurable TTL and limit per endpoint *(OWASP A07)*. |
 | SEC-02 | Rate limit configuration MUST be injectable via `SecurityModuleOptions.rateLimit` with per-endpoint overrides.                                                                                                                         |
 
 ### 5.2 Input Validation
 
 | ID     | Requirement                                                                                                                                                                  |
 | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| SEC-03 | All DTOs MUST be validated with `class-validator` + `class-transformer` via a global `ValidationPipe` with `whitelist: true` and `forbidNonWhitelisted: true` _(OWASP A03)_. |
+| SEC-03 | All DTOs MUST be validated with `class-validator` + `class-transformer` via a global `ValidationPipe` with `whitelist: true` and `forbidNonWhitelisted: true` *(OWASP A03)*. |
 | SEC-04 | `ValidationPipe` MUST be configured with `transform: true` so request payloads are typed DTO instances, not plain objects.                                                   |
 
 ### 5.3 HTTP Security Headers
 
 | ID     | Requirement                                                                                                                                                                                                                              |
 | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| SEC-05 | The module documentation MUST instruct consumers to apply `helmet()` middleware to set `Content-Security-Policy`, `X-Content-Type-Options`, `X-Frame-Options`, `Strict-Transport-Security`, and `Referrer-Policy` headers _(OWASP A05)_. |
+| SEC-05 | The module documentation MUST instruct consumers to apply `helmet()` middleware to set `Content-Security-Policy`, `X-Content-Type-Options`, `X-Frame-Options`, `Strict-Transport-Security`, and `Referrer-Policy` headers *(OWASP A05)*. |
 | SEC-06 | `AuthController` responses MUST never include `Cache-Control` headers that allow caching of authentication responses (`no-store` MUST be set).                                                                                           |
 
 ### 5.4 Response Hardening
 
 | ID     | Requirement                                                                                                                                                                                                                     |
 | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| SEC-07 | All auth responses MUST use `ClassSerializerInterceptor` with `@Exclude()` on sensitive fields. `PasswordHash`, internal tokens, and DB IDs not needed by the client MUST be excluded _(OWASP A02)_.                            |
-| SEC-08 | Error responses from auth endpoints MUST return generic messages only. Stack traces MUST be suppressed in production via NestJS exception filters. No error message MUST reveal whether an email/username exists _(OWASP A07)_. |
+| SEC-07 | All auth responses MUST use `ClassSerializerInterceptor` with `@Exclude()` on sensitive fields. `PasswordHash`, internal tokens, and DB IDs not needed by the client MUST be excluded *(OWASP A02)*.                            |
+| SEC-08 | Error responses from auth endpoints MUST return generic messages only. Stack traces MUST be suppressed in production via NestJS exception filters. No error message MUST reveal whether an email/username exists *(OWASP A07)*. |
 
 ---
 
@@ -282,7 +290,7 @@ model AuditLog {
 | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | AUDIT-01 | `AuditService` MUST write a record to `AuditLog` for every event: `REGISTER`, `LOGIN_SUCCESS`, `LOGIN_FAILURE`, `LOGIN_LOCKED`, `LOGOUT`, `LOGOUT_ALL`, `TOKEN_REFRESH`, `TOKEN_REPLAY_DETECTED`, `PASSWORD_CHANGED`, `PASSWORD_RESET_REQUESTED`, `PASSWORD_RESET_SUCCESS`, `GOOGLE_LOGIN`, `GOOGLE_LINK`. |
 | AUDIT-02 | Each `AuditLog` record MUST capture: `userId` (if resolved), `event`, `provider`, `ip`, `userAgent`, and a `meta` JSON blob for event-specific data.                                                                                                                                                       |
-| AUDIT-03 | Sensitive data (passwords, raw tokens, secrets) MUST never appear in any `AuditLog` record or NestJS `Logger` output _(OWASP A09)_.                                                                                                                                                                        |
+| AUDIT-03 | Sensitive data (passwords, raw tokens, secrets) MUST never appear in any `AuditLog` record or NestJS `Logger` output *(OWASP A09)*.                                                                                                                                                                        |
 | AUDIT-04 | `AuditService` MUST use NestJS built-in `Logger` for console output. A custom `LoggerService` MUST be injectable via `SecurityModuleOptions`.                                                                                                                                                              |
 | AUDIT-05 | `AuditService` MUST emit a `@nestjs/event-emitter` event for each audit action so consumers can attach side effects (e.g. alerting) without modifying the module.                                                                                                                                          |
 | AUDIT-06 | `AuditService` MUST expose `getAuditLog(filters?: AuditLogFilters)` returning paginated `AuditLog` rows via Prisma.                                                                                                                                                                                        |
@@ -419,4 +427,4 @@ export class ProfileController {
 
 ---
 
-_Document version: 1.3 — March 06 2026 (authN-only, OWASP-hardened, Google OAuth 2.0, Prisma + PostgreSQL)_
+*Document version: 1.3 — March 06 2026 (authN-only, OWASP-hardened, Google OAuth 2.0, Prisma + PostgreSQL)*
