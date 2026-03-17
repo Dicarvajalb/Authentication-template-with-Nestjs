@@ -148,24 +148,36 @@ export class AuthService implements AuthServiceI {
     const user = await this.userService.findById(userId);
     if (!user) {
       throw new InternalServerErrorException('User could not be found');
-    } 
-    
-
+    }
   }
-  public async changePassword(token: string , current: string, next: string): Promise<UserEntity> {
-    const isValid = this.tokenService.verifyAccess("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5OWQ1ZTllYi0zNzg5LTQxNmEtODc4Ni0xYzVjZWZjYzE3YTMiLCJlbWFpbCI6ImRpZUBob2xhMS5jb20iLCJpYXQiOjE3NzM0NjMwNjksImV4cCI6MTc3MzQ2MzEwNX0.enlossdFx73Okxbgc2gsWk3UOlmGJ6ZaLj-FMR9KwJA");
-    console.log("Valid", isValid)
-    if (!isValid) {
-      throw new UnauthorizedException('Invalid token');
-    }
-    const user = await this.userService.findById(isValid.sub);
+
+  /**
+   * Changes password for the user. Re-verifies currentPassword with timingSafeEqual
+   * (via AuthPasswordService.verify), then updates hash and revokes all refresh tokens (AUTH-12, AUTH-13).
+   */
+  public async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<void> {
+    const user = await this.userService.findById(userId);
     if (!user) {
-      throw new UnauthorizedException('User could not be found');
-    }
-    if (!(await this.passwordService.verify(current, next ))) {
       throw new UnauthorizedException('Invalid credentials');
     }
-    const newUser = await this.userService.updateUser(user.username, user.email, await this.passwordService.hash(next));
-    return newUser;
+    if (!user.password) {
+      throw new UnauthorizedException(
+        'Account has no password (e.g. Google-only). Cannot change password.',
+      );
+    }
+    const currentValid = await this.passwordService.verify(
+      currentPassword,
+      user.password,
+    );
+    if (!currentValid) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+    const newHash = await this.passwordService.hash(newPassword);
+    await this.userService.updateUser(user.username, user.email, newHash);
+    await this.authDb.deleteAllRefreshTokensForUser(userId);
   }
 }

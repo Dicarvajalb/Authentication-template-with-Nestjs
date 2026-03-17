@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
+import { HttpModule } from '@nestjs/axios';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { UserModule } from 'src/user/user.module';
 import { AUTH_DB } from './interfaces/auth.utilities';
@@ -11,6 +12,9 @@ import { AuthDBService } from './services/auth-db.service';
 import { AuthService } from './services/auth.service';
 import { AuthTokenService } from './services/auth-token.service';
 import { AuthPasswordService } from './services/auth-password.service';
+import { JwtBearerGuard } from './guards/jwt-bearer.guard';
+import { ChangePassValidationPipe } from './pipes/change-password.pipe';
+import { OAuthService } from './services/oauth.service';
 
 @Module({
   controllers: [AuthController],
@@ -19,13 +23,17 @@ import { AuthPasswordService } from './services/auth-password.service';
     AuthTokenService,
     AuthPasswordService,
     AuthDBService,
+    OAuthService,
+    JwtBearerGuard,
     { provide: AUTH_DB, useClass: AuthDBService },
     LoginValidationPipe,
     RegisterValidationPipe,
+    ChangePassValidationPipe,
   ],
   imports: [
     PrismaModule,
     UserModule,
+    HttpModule,
     JwtModule.registerAsync({
       global: true,
       inject: [ConfigService],
@@ -33,7 +41,7 @@ import { AuthPasswordService } from './services/auth-password.service';
         console.log(configService.get<string>('JWT_DURATION'))
         return ({
         secret: configService.get<string>('JWT_SECRET'),
-        signOptions: { expiresIn: configService.get<number>('JWT_DURATION')  || 600 }, // 10 min
+        signOptions: { expiresIn: configService.get<number>('JWT_DURATION')  || 6000 }, // 10 min
       })},
     }),
   ],

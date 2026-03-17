@@ -38,4 +38,10 @@ export class AuthDBService implements AuthDBI {
       },
     });
   }
+
+  async deleteAllRefreshTokensForUser(userId: string): Promise<void> {
+    await this.prisma.refreshToken.deleteMany({
+      where: { userId },
+    });
+  }
 }

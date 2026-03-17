@@ -16,6 +16,7 @@ export interface AuthDBI {
     userId: string,
     data: { failedCount: number; lockedUntil: Date | null },
   ): Promise<void>;
+  deleteAllRefreshTokensForUser(userId: string): Promise<void>;
 }
 
 export interface AuthServiceI {
@@ -27,7 +28,11 @@ export interface AuthServiceI {
   login(email: string, password: string): Promise<AuthTokens>;
   //refresh(refreshToken: string): Promise<AuthTokens>;
   logout(userId: string): Promise<void>;
-  changePassword(token: string, current: string, next: string): Promise<UserEntity>;
+  changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<void>;
 }
 export interface AuthPasswordServiceI {
   hash(plain: string): Promise<string>;

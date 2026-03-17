@@ -18,16 +18,15 @@ model User {
   refreshTokens      RefreshToken[] 
   loginAttempt       LoginAttempt?
   passwordResetTokens PasswordResetToken[]
-  googleAccount      GoogleAccount?
+  oAuthAccount      OAuthAccount?
   auditLogs          AuditLog[]
 }
 
-model GoogleAccount {
+model OAuthAccount {
   id         String   @id @default(uuid())
-  sub        String   @unique          // Google's unique user ID
+  sub        String   @unique          // OpenID unique identifier
   email      String
   name       String?
-  picture    String?
   userId     String   @unique
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt  DateTime @default(now())

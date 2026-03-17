@@ -84,11 +84,11 @@ This module provides a reusable, production-grade **authentication layer** built
 
 ### 2.3 Password Management
 
-| ID      | Requirement                                                                                                                                                                                                                                                                                                                        |
-| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| AUTH-11 | `AuthController` MUST expose `PATCH /auth/change-password` accepting `{ currentPassword, newPassword }`.|
+| ID      | Requirement                                                                                                                    |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| AUTH-11 | `AuthController` MUST expose `PATCH /auth/change-password` accepting `{ currentPassword, newPassword }`.                       |
 | AUTH-12 | `AuthService.changePassword()` MUST re-verify `currentPassword` using `crypto.timingSafeEqual()` before applying the new hash. |
-| AUTH-13 | On successful password change, ALL active refresh tokens for the user MUST be revoked (full session termination).|
+| AUTH-13 | On successful password change, ALL active refresh tokens for the user MUST be revoked (full session termination).              |
 
 ---
 
@@ -101,13 +101,14 @@ This module provides a reusable, production-grade **authentication layer** built
 | OAUTH-01 | `AuthController` MUST expose `GET /auth/google` that redirects the user to Google's authorization endpoint with scopes `openid email profile`, a `state` parameter (random UUID stored in `OAuthState` table), and `response_type=code`.                                                     |
 | OAUTH-02 | `AuthController` MUST expose `GET /auth/google/callback` that receives `code` and `state` from Google. `OAuthService` MUST validate that `state` matches a record in `OAuthState` and that it has not expired (TTL: 10 minutes) before proceeding *(CSRF protection, OWASP A01)*.            |
 | OAUTH-03 | `OAuthService` MUST exchange the authorization `code` for tokens by making a server-side `POST` to `https://oauth2.googleapis.com/token` using `@nestjs/axios`. Client credentials (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`) MUST come from `ConfigService` *(OWASP A02)*.                |
-| OAUTH-04 | `OAuthService` MUST retrieve the user's profile by calling `https://www.googleapis.com/oauth2/v3/userinfo` with the access token obtained in OAUTH-03. Only `sub`, `email`, `name`, and `picture` fields MUST be consumed.                                                                   |
+| OAUTH-04 | `OAuthService` MUST retrieve the user's profile by calling `https://www.googleapis.com/oauth2/v3/userinfo` with the access token obtained in OAUTH-03. Only `sub`, `email`, and `name` fields MUST be consumed.                                                                              |
 | OAUTH-05 | Google's ID token returned in the token exchange MUST be verified using Google's public keys fetched from `https://www.googleapis.com/oauth2/v3/certs` via `@nestjs/jwt`. The `aud` claim MUST match `GOOGLE_CLIENT_ID` and `iss` MUST be `accounts.google.com` *(OWASP A08)*.               |
-| OAUTH-06 | `OAuthService` MUST implement a **find-or-create** strategy: if a `GoogleAccount` record with the given `sub` exists, link to the existing user; otherwise create a new `User` with `passwordHash = null` and create the `GoogleAccount` record.                                             |
-| OAUTH-07 | A user MUST be able to link a Google account to an existing credential-based account if they are already authenticated (via `POST /auth/google/link` with a valid JWT). `OAuthService` MUST prevent linking a Google account already associated with a different user (`ConflictException`). |
+| OAUTH-06 | `OAuthService` MUST implement a **find-or-create** strategy: if an `OAuthAccount` record with the given `sub` exists, link to the existing `User` via `User.oAuthAccount`; otherwise create a new `User` with `passwordHash = null` and create the `OAuthAccount` record.                    |
+| OAUTH-07 | A user MUST be able to link a Google account to an existing credential-based account if they are already authenticated (via `POST /auth/google/link` with a valid JWT). `OAuthService` MUST prevent linking an OAuth account already associated with a different user (`ConflictException`). |
 | OAUTH-08 | On successful Google login/signup, the same JWT access + refresh token pair flow used for credential login MUST be applied — no separate session mechanism for OAuth users.                                                                                                                  |
 | OAUTH-09 | The `OAuthState` record MUST be deleted immediately after validation (single-use). Expired `OAuthState` records MUST be purged by the scheduled cleanup job.                                                                                                                                 |
-| OAUTH-10 | Google OAuth client credentials (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_CALLBACK_URL`) MUST be loaded exclusively from `ConfigService` and validated at module startup via a config schema (`Joi` or `class-validator`).                                                        |
+| OAUTH-10 | Google OAuth client credentials (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_CALLBACK_URL`) MUST be loaded exclusively from `ConfigService` and validated at module startup via a config schema (`ajv`).                                                                             |
+| OAUTH-11 | Initially it MUST work with google OAuth server but it have to implement abstract interfaces (entities and services) to agregate other third parties in the future                                                                            |
 
 ---
 
