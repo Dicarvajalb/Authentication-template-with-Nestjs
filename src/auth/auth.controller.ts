@@ -26,7 +26,7 @@ import { ChangePassValidationPipe } from './pipes/change-password.pipe';
 import type { ChangePasswordDTO } from './dto/change-password.dto';
 import { JwtBearerGuard } from './guards/jwt-bearer.guard';
 import type { TokenPayload } from './interfaces/auth.entities';
-import { OAuthService } from './services/oauth.service';
+import { OAuthGoogleService } from './services/oauth.service';
 import { AuthTokenService } from './services/auth-token.service';
 
 const ACCESS_TOKEN_COOKIE = 'access_token';
@@ -38,11 +38,15 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
-    private readonly oAuthService: OAuthService,
+    private readonly OAuthGoogleService: OAuthGoogleService,
     private readonly tokenService: AuthTokenService,
   ) {}
 
-  private setAccessTokenCookie(res: Response, token: string, expiresInSeconds: number): void {
+  private setAccessTokenCookie(
+    res: Response,
+    token: string,
+    expiresInSeconds: number,
+  ): void {
     const secure = this.configService.get<string>('NODE_ENV') === 'production';
     res.cookie(ACCESS_TOKEN_COOKIE, token, {
       httpOnly: true,
@@ -121,7 +125,7 @@ export class AuthController {
 
   @Get('google')
   async googleAuth(@Res() res: Response): Promise<void> {
-    const { url } = await this.oAuthService.createAuthRedirectUrl();
+    const { url } = await this.OAuthGoogleService.createAuthRedirectUrl();
     res.redirect(url);
   }
 
@@ -130,7 +134,7 @@ export class AuthController {
   async googleLink(): Promise<{ url: string }> {
     // The user must be authenticated (JWT). Linking is completed on callback,
     // where the existing auth cookie (if present) is used to decide link vs create.
-    return await this.oAuthService.createAuthRedirectUrl();
+    return await this.OAuthGoogleService.createAuthRedirectUrl();
   }
 
   @Get('google/callback')
@@ -146,17 +150,21 @@ export class AuthController {
 
     // Optional linking: if user already authenticated via cookie, link instead of creating a new user.
     let linkingUserId: string | undefined;
-    const accessToken = (req as any).cookies?.access_token as string | undefined;
+    const accessToken = (req as any).cookies?.access_token as
+      | string
+      | undefined;
     if (accessToken) {
       try {
-        const payload = this.tokenService.verifyAccess(accessToken) as TokenPayload;
+        const payload = this.tokenService.verifyAccess(
+          accessToken,
+        ) as TokenPayload;
         linkingUserId = payload.sub;
       } catch {
         linkingUserId = undefined;
       }
     }
 
-    const tokens = await this.oAuthService.handleCallback({
+    const tokens = await this.OAuthGoogleService.handleCallback({
       code,
       state,
       linkingUserId,

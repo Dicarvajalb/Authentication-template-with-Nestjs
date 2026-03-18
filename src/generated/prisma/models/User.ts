@@ -193,7 +193,7 @@ export type UserWhereInput = {
   refreshTokens?: Prisma.RefreshTokenListRelationFilter
   loginAttempt?: Prisma.XOR<Prisma.LoginAttemptNullableScalarRelationFilter, Prisma.LoginAttemptWhereInput> | null
   passwordResetTokens?: Prisma.PasswordResetTokenListRelationFilter
-  googleAccount?: Prisma.XOR<Prisma.GoogleAccountNullableScalarRelationFilter, Prisma.GoogleAccountWhereInput> | null
+  oAuthAccount?: Prisma.XOR<Prisma.OAuthAccountNullableScalarRelationFilter, Prisma.OAuthAccountWhereInput> | null
   auditLogs?: Prisma.AuditLogListRelationFilter
 }
 
@@ -207,7 +207,7 @@ export type UserOrderByWithRelationInput = {
   refreshTokens?: Prisma.RefreshTokenOrderByRelationAggregateInput
   loginAttempt?: Prisma.LoginAttemptOrderByWithRelationInput
   passwordResetTokens?: Prisma.PasswordResetTokenOrderByRelationAggregateInput
-  googleAccount?: Prisma.GoogleAccountOrderByWithRelationInput
+  oAuthAccount?: Prisma.OAuthAccountOrderByWithRelationInput
   auditLogs?: Prisma.AuditLogOrderByRelationAggregateInput
 }
 
@@ -224,7 +224,7 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   refreshTokens?: Prisma.RefreshTokenListRelationFilter
   loginAttempt?: Prisma.XOR<Prisma.LoginAttemptNullableScalarRelationFilter, Prisma.LoginAttemptWhereInput> | null
   passwordResetTokens?: Prisma.PasswordResetTokenListRelationFilter
-  googleAccount?: Prisma.XOR<Prisma.GoogleAccountNullableScalarRelationFilter, Prisma.GoogleAccountWhereInput> | null
+  oAuthAccount?: Prisma.XOR<Prisma.OAuthAccountNullableScalarRelationFilter, Prisma.OAuthAccountWhereInput> | null
   auditLogs?: Prisma.AuditLogListRelationFilter
 }, "id" | "email" | "username">
 
@@ -262,7 +262,7 @@ export type UserCreateInput = {
   refreshTokens?: Prisma.RefreshTokenCreateNestedManyWithoutUserInput
   loginAttempt?: Prisma.LoginAttemptCreateNestedOneWithoutUserInput
   passwordResetTokens?: Prisma.PasswordResetTokenCreateNestedManyWithoutUserInput
-  googleAccount?: Prisma.GoogleAccountCreateNestedOneWithoutUserInput
+  oAuthAccount?: Prisma.OAuthAccountCreateNestedOneWithoutUserInput
   auditLogs?: Prisma.AuditLogCreateNestedManyWithoutUserInput
 }
 
@@ -276,7 +276,7 @@ export type UserUncheckedCreateInput = {
   refreshTokens?: Prisma.RefreshTokenUncheckedCreateNestedManyWithoutUserInput
   loginAttempt?: Prisma.LoginAttemptUncheckedCreateNestedOneWithoutUserInput
   passwordResetTokens?: Prisma.PasswordResetTokenUncheckedCreateNestedManyWithoutUserInput
-  googleAccount?: Prisma.GoogleAccountUncheckedCreateNestedOneWithoutUserInput
+  oAuthAccount?: Prisma.OAuthAccountUncheckedCreateNestedOneWithoutUserInput
   auditLogs?: Prisma.AuditLogUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -290,7 +290,7 @@ export type UserUpdateInput = {
   refreshTokens?: Prisma.RefreshTokenUpdateManyWithoutUserNestedInput
   loginAttempt?: Prisma.LoginAttemptUpdateOneWithoutUserNestedInput
   passwordResetTokens?: Prisma.PasswordResetTokenUpdateManyWithoutUserNestedInput
-  googleAccount?: Prisma.GoogleAccountUpdateOneWithoutUserNestedInput
+  oAuthAccount?: Prisma.OAuthAccountUpdateOneWithoutUserNestedInput
   auditLogs?: Prisma.AuditLogUpdateManyWithoutUserNestedInput
 }
 
@@ -304,7 +304,7 @@ export type UserUncheckedUpdateInput = {
   refreshTokens?: Prisma.RefreshTokenUncheckedUpdateManyWithoutUserNestedInput
   loginAttempt?: Prisma.LoginAttemptUncheckedUpdateOneWithoutUserNestedInput
   passwordResetTokens?: Prisma.PasswordResetTokenUncheckedUpdateManyWithoutUserNestedInput
-  googleAccount?: Prisma.GoogleAccountUncheckedUpdateOneWithoutUserNestedInput
+  oAuthAccount?: Prisma.OAuthAccountUncheckedUpdateOneWithoutUserNestedInput
   auditLogs?: Prisma.AuditLogUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -384,18 +384,18 @@ export type DateTimeFieldUpdateOperationsInput = {
   set?: Date | string
 }
 
-export type UserCreateNestedOneWithoutGoogleAccountInput = {
-  create?: Prisma.XOR<Prisma.UserCreateWithoutGoogleAccountInput, Prisma.UserUncheckedCreateWithoutGoogleAccountInput>
-  connectOrCreate?: Prisma.UserCreateOrConnectWithoutGoogleAccountInput
+export type UserCreateNestedOneWithoutOAuthAccountInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutOAuthAccountInput, Prisma.UserUncheckedCreateWithoutOAuthAccountInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutOAuthAccountInput
   connect?: Prisma.UserWhereUniqueInput
 }
 
-export type UserUpdateOneRequiredWithoutGoogleAccountNestedInput = {
-  create?: Prisma.XOR<Prisma.UserCreateWithoutGoogleAccountInput, Prisma.UserUncheckedCreateWithoutGoogleAccountInput>
-  connectOrCreate?: Prisma.UserCreateOrConnectWithoutGoogleAccountInput
-  upsert?: Prisma.UserUpsertWithoutGoogleAccountInput
+export type UserUpdateOneRequiredWithoutOAuthAccountNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutOAuthAccountInput, Prisma.UserUncheckedCreateWithoutOAuthAccountInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutOAuthAccountInput
+  upsert?: Prisma.UserUpsertWithoutOAuthAccountInput
   connect?: Prisma.UserWhereUniqueInput
-  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutGoogleAccountInput, Prisma.UserUpdateWithoutGoogleAccountInput>, Prisma.UserUncheckedUpdateWithoutGoogleAccountInput>
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutOAuthAccountInput, Prisma.UserUpdateWithoutOAuthAccountInput>, Prisma.UserUncheckedUpdateWithoutOAuthAccountInput>
 }
 
 export type UserCreateNestedOneWithoutRefreshTokensInput = {
@@ -456,7 +456,7 @@ export type UserUpdateOneWithoutAuditLogsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutAuditLogsInput, Prisma.UserUpdateWithoutAuditLogsInput>, Prisma.UserUncheckedUpdateWithoutAuditLogsInput>
 }
 
-export type UserCreateWithoutGoogleAccountInput = {
+export type UserCreateWithoutOAuthAccountInput = {
   id?: string
   email: string
   username: string
@@ -469,7 +469,7 @@ export type UserCreateWithoutGoogleAccountInput = {
   auditLogs?: Prisma.AuditLogCreateNestedManyWithoutUserInput
 }
 
-export type UserUncheckedCreateWithoutGoogleAccountInput = {
+export type UserUncheckedCreateWithoutOAuthAccountInput = {
   id?: string
   email: string
   username: string
@@ -482,23 +482,23 @@ export type UserUncheckedCreateWithoutGoogleAccountInput = {
   auditLogs?: Prisma.AuditLogUncheckedCreateNestedManyWithoutUserInput
 }
 
-export type UserCreateOrConnectWithoutGoogleAccountInput = {
+export type UserCreateOrConnectWithoutOAuthAccountInput = {
   where: Prisma.UserWhereUniqueInput
-  create: Prisma.XOR<Prisma.UserCreateWithoutGoogleAccountInput, Prisma.UserUncheckedCreateWithoutGoogleAccountInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutOAuthAccountInput, Prisma.UserUncheckedCreateWithoutOAuthAccountInput>
 }
 
-export type UserUpsertWithoutGoogleAccountInput = {
-  update: Prisma.XOR<Prisma.UserUpdateWithoutGoogleAccountInput, Prisma.UserUncheckedUpdateWithoutGoogleAccountInput>
-  create: Prisma.XOR<Prisma.UserCreateWithoutGoogleAccountInput, Prisma.UserUncheckedCreateWithoutGoogleAccountInput>
+export type UserUpsertWithoutOAuthAccountInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutOAuthAccountInput, Prisma.UserUncheckedUpdateWithoutOAuthAccountInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutOAuthAccountInput, Prisma.UserUncheckedCreateWithoutOAuthAccountInput>
   where?: Prisma.UserWhereInput
 }
 
-export type UserUpdateToOneWithWhereWithoutGoogleAccountInput = {
+export type UserUpdateToOneWithWhereWithoutOAuthAccountInput = {
   where?: Prisma.UserWhereInput
-  data: Prisma.XOR<Prisma.UserUpdateWithoutGoogleAccountInput, Prisma.UserUncheckedUpdateWithoutGoogleAccountInput>
+  data: Prisma.XOR<Prisma.UserUpdateWithoutOAuthAccountInput, Prisma.UserUncheckedUpdateWithoutOAuthAccountInput>
 }
 
-export type UserUpdateWithoutGoogleAccountInput = {
+export type UserUpdateWithoutOAuthAccountInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   email?: Prisma.StringFieldUpdateOperationsInput | string
   username?: Prisma.StringFieldUpdateOperationsInput | string
@@ -511,7 +511,7 @@ export type UserUpdateWithoutGoogleAccountInput = {
   auditLogs?: Prisma.AuditLogUpdateManyWithoutUserNestedInput
 }
 
-export type UserUncheckedUpdateWithoutGoogleAccountInput = {
+export type UserUncheckedUpdateWithoutOAuthAccountInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   email?: Prisma.StringFieldUpdateOperationsInput | string
   username?: Prisma.StringFieldUpdateOperationsInput | string
@@ -533,7 +533,7 @@ export type UserCreateWithoutRefreshTokensInput = {
   updatedAt?: Date | string
   loginAttempt?: Prisma.LoginAttemptCreateNestedOneWithoutUserInput
   passwordResetTokens?: Prisma.PasswordResetTokenCreateNestedManyWithoutUserInput
-  googleAccount?: Prisma.GoogleAccountCreateNestedOneWithoutUserInput
+  oAuthAccount?: Prisma.OAuthAccountCreateNestedOneWithoutUserInput
   auditLogs?: Prisma.AuditLogCreateNestedManyWithoutUserInput
 }
 
@@ -546,7 +546,7 @@ export type UserUncheckedCreateWithoutRefreshTokensInput = {
   updatedAt?: Date | string
   loginAttempt?: Prisma.LoginAttemptUncheckedCreateNestedOneWithoutUserInput
   passwordResetTokens?: Prisma.PasswordResetTokenUncheckedCreateNestedManyWithoutUserInput
-  googleAccount?: Prisma.GoogleAccountUncheckedCreateNestedOneWithoutUserInput
+  oAuthAccount?: Prisma.OAuthAccountUncheckedCreateNestedOneWithoutUserInput
   auditLogs?: Prisma.AuditLogUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -575,7 +575,7 @@ export type UserUpdateWithoutRefreshTokensInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   loginAttempt?: Prisma.LoginAttemptUpdateOneWithoutUserNestedInput
   passwordResetTokens?: Prisma.PasswordResetTokenUpdateManyWithoutUserNestedInput
-  googleAccount?: Prisma.GoogleAccountUpdateOneWithoutUserNestedInput
+  oAuthAccount?: Prisma.OAuthAccountUpdateOneWithoutUserNestedInput
   auditLogs?: Prisma.AuditLogUpdateManyWithoutUserNestedInput
 }
 
@@ -588,7 +588,7 @@ export type UserUncheckedUpdateWithoutRefreshTokensInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   loginAttempt?: Prisma.LoginAttemptUncheckedUpdateOneWithoutUserNestedInput
   passwordResetTokens?: Prisma.PasswordResetTokenUncheckedUpdateManyWithoutUserNestedInput
-  googleAccount?: Prisma.GoogleAccountUncheckedUpdateOneWithoutUserNestedInput
+  oAuthAccount?: Prisma.OAuthAccountUncheckedUpdateOneWithoutUserNestedInput
   auditLogs?: Prisma.AuditLogUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -601,7 +601,7 @@ export type UserCreateWithoutLoginAttemptInput = {
   updatedAt?: Date | string
   refreshTokens?: Prisma.RefreshTokenCreateNestedManyWithoutUserInput
   passwordResetTokens?: Prisma.PasswordResetTokenCreateNestedManyWithoutUserInput
-  googleAccount?: Prisma.GoogleAccountCreateNestedOneWithoutUserInput
+  oAuthAccount?: Prisma.OAuthAccountCreateNestedOneWithoutUserInput
   auditLogs?: Prisma.AuditLogCreateNestedManyWithoutUserInput
 }
 
@@ -614,7 +614,7 @@ export type UserUncheckedCreateWithoutLoginAttemptInput = {
   updatedAt?: Date | string
   refreshTokens?: Prisma.RefreshTokenUncheckedCreateNestedManyWithoutUserInput
   passwordResetTokens?: Prisma.PasswordResetTokenUncheckedCreateNestedManyWithoutUserInput
-  googleAccount?: Prisma.GoogleAccountUncheckedCreateNestedOneWithoutUserInput
+  oAuthAccount?: Prisma.OAuthAccountUncheckedCreateNestedOneWithoutUserInput
   auditLogs?: Prisma.AuditLogUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -643,7 +643,7 @@ export type UserUpdateWithoutLoginAttemptInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   refreshTokens?: Prisma.RefreshTokenUpdateManyWithoutUserNestedInput
   passwordResetTokens?: Prisma.PasswordResetTokenUpdateManyWithoutUserNestedInput
-  googleAccount?: Prisma.GoogleAccountUpdateOneWithoutUserNestedInput
+  oAuthAccount?: Prisma.OAuthAccountUpdateOneWithoutUserNestedInput
   auditLogs?: Prisma.AuditLogUpdateManyWithoutUserNestedInput
 }
 
@@ -656,7 +656,7 @@ export type UserUncheckedUpdateWithoutLoginAttemptInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   refreshTokens?: Prisma.RefreshTokenUncheckedUpdateManyWithoutUserNestedInput
   passwordResetTokens?: Prisma.PasswordResetTokenUncheckedUpdateManyWithoutUserNestedInput
-  googleAccount?: Prisma.GoogleAccountUncheckedUpdateOneWithoutUserNestedInput
+  oAuthAccount?: Prisma.OAuthAccountUncheckedUpdateOneWithoutUserNestedInput
   auditLogs?: Prisma.AuditLogUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -669,7 +669,7 @@ export type UserCreateWithoutPasswordResetTokensInput = {
   updatedAt?: Date | string
   refreshTokens?: Prisma.RefreshTokenCreateNestedManyWithoutUserInput
   loginAttempt?: Prisma.LoginAttemptCreateNestedOneWithoutUserInput
-  googleAccount?: Prisma.GoogleAccountCreateNestedOneWithoutUserInput
+  oAuthAccount?: Prisma.OAuthAccountCreateNestedOneWithoutUserInput
   auditLogs?: Prisma.AuditLogCreateNestedManyWithoutUserInput
 }
 
@@ -682,7 +682,7 @@ export type UserUncheckedCreateWithoutPasswordResetTokensInput = {
   updatedAt?: Date | string
   refreshTokens?: Prisma.RefreshTokenUncheckedCreateNestedManyWithoutUserInput
   loginAttempt?: Prisma.LoginAttemptUncheckedCreateNestedOneWithoutUserInput
-  googleAccount?: Prisma.GoogleAccountUncheckedCreateNestedOneWithoutUserInput
+  oAuthAccount?: Prisma.OAuthAccountUncheckedCreateNestedOneWithoutUserInput
   auditLogs?: Prisma.AuditLogUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -711,7 +711,7 @@ export type UserUpdateWithoutPasswordResetTokensInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   refreshTokens?: Prisma.RefreshTokenUpdateManyWithoutUserNestedInput
   loginAttempt?: Prisma.LoginAttemptUpdateOneWithoutUserNestedInput
-  googleAccount?: Prisma.GoogleAccountUpdateOneWithoutUserNestedInput
+  oAuthAccount?: Prisma.OAuthAccountUpdateOneWithoutUserNestedInput
   auditLogs?: Prisma.AuditLogUpdateManyWithoutUserNestedInput
 }
 
@@ -724,7 +724,7 @@ export type UserUncheckedUpdateWithoutPasswordResetTokensInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   refreshTokens?: Prisma.RefreshTokenUncheckedUpdateManyWithoutUserNestedInput
   loginAttempt?: Prisma.LoginAttemptUncheckedUpdateOneWithoutUserNestedInput
-  googleAccount?: Prisma.GoogleAccountUncheckedUpdateOneWithoutUserNestedInput
+  oAuthAccount?: Prisma.OAuthAccountUncheckedUpdateOneWithoutUserNestedInput
   auditLogs?: Prisma.AuditLogUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -738,7 +738,7 @@ export type UserCreateWithoutAuditLogsInput = {
   refreshTokens?: Prisma.RefreshTokenCreateNestedManyWithoutUserInput
   loginAttempt?: Prisma.LoginAttemptCreateNestedOneWithoutUserInput
   passwordResetTokens?: Prisma.PasswordResetTokenCreateNestedManyWithoutUserInput
-  googleAccount?: Prisma.GoogleAccountCreateNestedOneWithoutUserInput
+  oAuthAccount?: Prisma.OAuthAccountCreateNestedOneWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutAuditLogsInput = {
@@ -751,7 +751,7 @@ export type UserUncheckedCreateWithoutAuditLogsInput = {
   refreshTokens?: Prisma.RefreshTokenUncheckedCreateNestedManyWithoutUserInput
   loginAttempt?: Prisma.LoginAttemptUncheckedCreateNestedOneWithoutUserInput
   passwordResetTokens?: Prisma.PasswordResetTokenUncheckedCreateNestedManyWithoutUserInput
-  googleAccount?: Prisma.GoogleAccountUncheckedCreateNestedOneWithoutUserInput
+  oAuthAccount?: Prisma.OAuthAccountUncheckedCreateNestedOneWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutAuditLogsInput = {
@@ -780,7 +780,7 @@ export type UserUpdateWithoutAuditLogsInput = {
   refreshTokens?: Prisma.RefreshTokenUpdateManyWithoutUserNestedInput
   loginAttempt?: Prisma.LoginAttemptUpdateOneWithoutUserNestedInput
   passwordResetTokens?: Prisma.PasswordResetTokenUpdateManyWithoutUserNestedInput
-  googleAccount?: Prisma.GoogleAccountUpdateOneWithoutUserNestedInput
+  oAuthAccount?: Prisma.OAuthAccountUpdateOneWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutAuditLogsInput = {
@@ -793,7 +793,7 @@ export type UserUncheckedUpdateWithoutAuditLogsInput = {
   refreshTokens?: Prisma.RefreshTokenUncheckedUpdateManyWithoutUserNestedInput
   loginAttempt?: Prisma.LoginAttemptUncheckedUpdateOneWithoutUserNestedInput
   passwordResetTokens?: Prisma.PasswordResetTokenUncheckedUpdateManyWithoutUserNestedInput
-  googleAccount?: Prisma.GoogleAccountUncheckedUpdateOneWithoutUserNestedInput
+  oAuthAccount?: Prisma.OAuthAccountUncheckedUpdateOneWithoutUserNestedInput
 }
 
 
@@ -855,7 +855,7 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   refreshTokens?: boolean | Prisma.User$refreshTokensArgs<ExtArgs>
   loginAttempt?: boolean | Prisma.User$loginAttemptArgs<ExtArgs>
   passwordResetTokens?: boolean | Prisma.User$passwordResetTokensArgs<ExtArgs>
-  googleAccount?: boolean | Prisma.User$googleAccountArgs<ExtArgs>
+  oAuthAccount?: boolean | Prisma.User$oAuthAccountArgs<ExtArgs>
   auditLogs?: boolean | Prisma.User$auditLogsArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["user"]>
@@ -892,7 +892,7 @@ export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   refreshTokens?: boolean | Prisma.User$refreshTokensArgs<ExtArgs>
   loginAttempt?: boolean | Prisma.User$loginAttemptArgs<ExtArgs>
   passwordResetTokens?: boolean | Prisma.User$passwordResetTokensArgs<ExtArgs>
-  googleAccount?: boolean | Prisma.User$googleAccountArgs<ExtArgs>
+  oAuthAccount?: boolean | Prisma.User$oAuthAccountArgs<ExtArgs>
   auditLogs?: boolean | Prisma.User$auditLogsArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }
@@ -905,7 +905,7 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     refreshTokens: Prisma.$RefreshTokenPayload<ExtArgs>[]
     loginAttempt: Prisma.$LoginAttemptPayload<ExtArgs> | null
     passwordResetTokens: Prisma.$PasswordResetTokenPayload<ExtArgs>[]
-    googleAccount: Prisma.$GoogleAccountPayload<ExtArgs> | null
+    oAuthAccount: Prisma.$OAuthAccountPayload<ExtArgs> | null
     auditLogs: Prisma.$AuditLogPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
@@ -1312,7 +1312,7 @@ export interface Prisma__UserClient<T, Null = never, ExtArgs extends runtime.Typ
   refreshTokens<T extends Prisma.User$refreshTokensArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$refreshTokensArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$RefreshTokenPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   loginAttempt<T extends Prisma.User$loginAttemptArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$loginAttemptArgs<ExtArgs>>): Prisma.Prisma__LoginAttemptClient<runtime.Types.Result.GetResult<Prisma.$LoginAttemptPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   passwordResetTokens<T extends Prisma.User$passwordResetTokensArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$passwordResetTokensArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$PasswordResetTokenPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
-  googleAccount<T extends Prisma.User$googleAccountArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$googleAccountArgs<ExtArgs>>): Prisma.Prisma__GoogleAccountClient<runtime.Types.Result.GetResult<Prisma.$GoogleAccountPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+  oAuthAccount<T extends Prisma.User$oAuthAccountArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$oAuthAccountArgs<ExtArgs>>): Prisma.Prisma__OAuthAccountClient<runtime.Types.Result.GetResult<Prisma.$OAuthAccountPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   auditLogs<T extends Prisma.User$auditLogsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$auditLogsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AuditLogPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
@@ -1804,22 +1804,22 @@ export type User$passwordResetTokensArgs<ExtArgs extends runtime.Types.Extension
 }
 
 /**
- * User.googleAccount
+ * User.oAuthAccount
  */
-export type User$googleAccountArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+export type User$oAuthAccountArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   /**
-   * Select specific fields to fetch from the GoogleAccount
+   * Select specific fields to fetch from the OAuthAccount
    */
-  select?: Prisma.GoogleAccountSelect<ExtArgs> | null
+  select?: Prisma.OAuthAccountSelect<ExtArgs> | null
   /**
-   * Omit specific fields from the GoogleAccount
+   * Omit specific fields from the OAuthAccount
    */
-  omit?: Prisma.GoogleAccountOmit<ExtArgs> | null
+  omit?: Prisma.OAuthAccountOmit<ExtArgs> | null
   /**
    * Choose, which related nodes to fetch as well
    */
-  include?: Prisma.GoogleAccountInclude<ExtArgs> | null
-  where?: Prisma.GoogleAccountWhereInput
+  include?: Prisma.OAuthAccountInclude<ExtArgs> | null
+  where?: Prisma.OAuthAccountWhereInput
 }
 
 /**

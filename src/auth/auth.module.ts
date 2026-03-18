@@ -14,7 +14,7 @@ import { AuthTokenService } from './services/auth-token.service';
 import { AuthPasswordService } from './services/auth-password.service';
 import { JwtBearerGuard } from './guards/jwt-bearer.guard';
 import { ChangePassValidationPipe } from './pipes/change-password.pipe';
-import { OAuthService } from './services/oauth.service';
+import { OAuthGoogleService } from './services/oauth.service';
 
 @Module({
   controllers: [AuthController],
@@ -23,7 +23,7 @@ import { OAuthService } from './services/oauth.service';
     AuthTokenService,
     AuthPasswordService,
     AuthDBService,
-    OAuthService,
+    OAuthGoogleService,
     JwtBearerGuard,
     { provide: AUTH_DB, useClass: AuthDBService },
     LoginValidationPipe,
@@ -38,11 +38,14 @@ import { OAuthService } from './services/oauth.service';
       global: true,
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
-        console.log(configService.get<string>('JWT_DURATION'))
-        return ({
-        secret: configService.get<string>('JWT_SECRET'),
-        signOptions: { expiresIn: configService.get<number>('JWT_DURATION')  || 6000 }, // 10 min
-      })},
+        console.log(configService.get<string>('JWT_DURATION'));
+        return {
+          secret: configService.get<string>('JWT_SECRET'),
+          signOptions: {
+            expiresIn: configService.get<number>('JWT_DURATION') || 6000,
+          }, // 10 min
+        };
+      },
     }),
   ],
 })

@@ -43,10 +43,10 @@ export { Prisma }
  */
 export type User = Prisma.UserModel
 /**
- * Model GoogleAccount
+ * Model OAuthAccount
  * 
  */
-export type GoogleAccount = Prisma.GoogleAccountModel
+export type OAuthAccount = Prisma.OAuthAccountModel
 /**
  * Model RefreshToken
  * 
