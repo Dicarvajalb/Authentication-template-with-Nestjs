@@ -24,10 +24,10 @@ import { RegisterValidationPipe } from './pipes/register.pipe';
 import { AuthService } from './services/auth.service';
 import { ChangePassValidationPipe } from './pipes/change-password.pipe';
 import type { ChangePasswordDTO } from './dto/change-password.dto';
-import { JwtBearerGuard } from './guards/jwt-bearer.guard';
 import type { TokenPayload } from './interfaces/auth.entities';
 import { OAuthGoogleService } from './services/oauth.service';
 import { AuthTokenService } from './services/auth-token.service';
+import { Public } from 'src/common/decorators/public';
 
 const ACCESS_TOKEN_COOKIE = 'access_token';
 
@@ -68,6 +68,7 @@ export class AuthController {
   }
 
   @Post('register')
+  @Public()
   @UsePipes(RegisterValidationPipe)
   async register(
     @Body() data: RegisterDto,
@@ -80,13 +81,14 @@ export class AuthController {
     );
     this.setAccessTokenCookie(
       res,
-      serviceRes.tokens.token,
-      serviceRes.tokens.expiresIn,
+      serviceRes.tokens.access_token,
+      this.configService.get<number>('JWT_DURATION') || 600000,
     );
     return { access_token: serviceRes.tokens.token };
   }
 
   @Post('login')
+  @Public()
   @UsePipes(LoginValidationPipe)
   async signIn(
     @Body() data: LoginDto,
@@ -98,7 +100,6 @@ export class AuthController {
   }
 
   @Post('logout')
-  @UseGuards(JwtBearerGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   async logout(
     @Req() req: RequestWithUser,
@@ -109,7 +110,6 @@ export class AuthController {
   }
 
   @Patch('change-password')
-  @UseGuards(JwtBearerGuard)
   @UsePipes(ChangePassValidationPipe)
   @HttpCode(HttpStatus.NO_CONTENT)
   async changePassword(
@@ -124,19 +124,13 @@ export class AuthController {
   }
 
   @Get('google')
+  @Public()
   async googleAuth(@Res() res: Response): Promise<void> {
     const { url } = await this.OAuthGoogleService.createAuthRedirectUrl();
     res.redirect(url);
   }
 
-  @Post('google/link')
-  @UseGuards(JwtBearerGuard)
-  async googleLink(): Promise<{ url: string }> {
-    // The user must be authenticated (JWT). Linking is completed on callback,
-    // where the existing auth cookie (if present) is used to decide link vs create.
-    return await this.OAuthGoogleService.createAuthRedirectUrl();
-  }
-
+  @Public()
   @Get('google/callback')
   async googleCallback(
     @Req() req: Request,
@@ -172,5 +166,12 @@ export class AuthController {
 
     this.setAccessTokenCookie(res, tokens.token, tokens.expiresIn);
     return { access_token: tokens.token };
+  }
+
+  @Public()
+  @Get('google')
+  async googleAuth(@Res() res: Response): Promise<void> {
+    const { url } = await this.OAuthGoogleService.createAuthRedirectUrl();
+    res.redirect(url);
   }
 }

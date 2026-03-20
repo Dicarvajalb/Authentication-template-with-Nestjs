@@ -10,10 +10,19 @@ import { ConfigService } from '@nestjs/config';
 import { Prisma } from 'src/generated/prisma/client';
 import { UserCRUDService } from 'src/user/services/user-crud.service';
 import { UserEntity } from 'src/user/interfaces/user.entities';
-import { AuthTokens, TokenPayload } from '../interfaces/auth.entities';
-import { AUTH_DB, type AuthDBI, type AuthServiceI } from '../interfaces/auth.utilities';
+import {
+  AuthTokens,
+  RefreshToken,
+  TokenPayload,
+} from '../interfaces/auth.entities';
+import {
+  AUTH_DB,
+  type AuthDBI,
+  type AuthServiceI,
+} from '../interfaces/auth.utilities';
 import { AuthPasswordService } from './auth-password.service';
 import { AuthTokenService } from './auth-token.service';
+import { randomUUID } from 'crypto';
 
 const DEFAULT_LOCKOUT_MAX_ATTEMPTS = 5;
 const DEFAULT_LOCKOUT_DURATION_MINUTES = 15;
@@ -72,15 +81,32 @@ export class AuthService implements AuthServiceI {
       lockedUntil: null,
     });
 
-    const payload: TokenPayload = {
+    const access_token: TokenPayload = {
       sub: user.id,
-      email: user.email,
+      type: 'access',
+    };
+
+    const refresh_token_internal: RefreshToken = {
+      userId: user.id,
+      expiresAt: new Date(
+        Date.now() +
+          (this.configService.get<number>('JWT_REFRESH_DURATION') || 0),
+      ),
+      familyId: randomUUID(),
+      jti: randomUUID(),
+    };
+    this.authDb.saveRefreshToken(refresh_token_internal);
+
+    const refresh_token_external: TokenPayload = {
+      sub: refresh_token_internal.userId,
+      exp: refresh_token_internal.expiresAt.getTime(),
+      jti: refresh_token_internal.jti,
+      type: 'refresh',
     };
 
     return {
-      token: this.tokenService.signAccess(payload),
-      expiresIn:
-        this.configService.get<number>('JWT_DURATION') ?? 36000,
+      access_token: this.tokenService.signAccess(access_token),
+      refresh_token: this.tokenService.signAccess(refresh_token_external),
     };
   }
 
@@ -90,7 +116,10 @@ export class AuthService implements AuthServiceI {
     email: string,
   ): Promise<{ user: UserEntity; tokens: AuthTokens }> {
     try {
-      const existing = await this.userService.findByUsernameOrEmail(username, email);
+      const existing = await this.userService.findByUsernameOrEmail(
+        username,
+        email,
+      );
 
       if (existing) {
         // Generic message — do NOT reveal whether the username or email matched.
@@ -105,7 +134,7 @@ export class AuthService implements AuthServiceI {
         email,
         hashedPassword,
       );
-      
+
       console.log('⚙️ ~ AuthService ~ register ~ user:', user);
 
       if (!user) {
@@ -119,7 +148,7 @@ export class AuthService implements AuthServiceI {
 
       const tokens: AuthTokens = {
         token: this.tokenService.signAccess(payload),
-        expiresIn: this.configService.get<number>('JWT_DURATION')  || 36000,
+        expiresIn: this.configService.get<number>('JWT_DURATION') || 36000,
       };
 
       return { user, tokens };
@@ -179,5 +208,52 @@ export class AuthService implements AuthServiceI {
     const newHash = await this.passwordService.hash(newPassword);
     await this.userService.updateUser(user.username, user.email, newHash);
     await this.authDb.deleteAllRefreshTokensForUser(userId);
+  }
+
+  public async refresh(refreshToken: string): Promise<AuthTokens> {
+    const validatedToken = this.tokenService.verifyAccess(refreshToken);
+    if (!validatedToken.jti) {
+      throw new UnauthorizedException();
+    }
+    if (validatedToken.type !== 'refresh') {
+      throw new UnauthorizedException();
+    }
+    const storedToken = await this.authDb.findRefreshToken(validatedToken.jti);
+    if (storedToken.revoked) {
+      throw new UnauthorizedException();
+    }
+    if (storedToken.expiresAt < new Date()) {
+      throw new UnauthorizedException('Unauthorized: Token expired');
+    }
+    if (storedToken.replacedByJti) {
+      throw new UnauthorizedException('Unauthorized: Token reused');
+    }
+
+    const newAccessPayload: TokenPayload = {
+      sub: storedToken.userId,
+      type: 'access',
+    };
+    const newAccessToken: string = this.tokenService.signAccess(
+      newAccessPayload,
+      this.configService.get<number>('JWT_REFRESH_DURATION'),
+    );
+    const newRefreshPayload: TokenPayload = {
+      sub: storedToken.userId,
+      type: 'access',
+      jti: randomUUID(),
+    };
+    const newRefreshToken: string = this.tokenService.signAccess(
+      newRefreshPayload,
+      this.configService.get<number>('JWT_REFRESH_DURATION'),
+    );
+    this.authDb.revokeAndSaveTokenTransaction(storedToken.jti, {
+      jti: randomUUID(),
+      userId: storedToken.userId,
+      expiresAt: new Date(
+        Date.now() +
+          (this.configService.get<number>('JWT_REFRESH_DURATION') || 0),
+      ),
+    });
+    return { access_token: newAccessToken, refresh_token: newRefreshToken };
   }
 }

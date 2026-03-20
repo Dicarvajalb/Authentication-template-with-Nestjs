@@ -54,7 +54,6 @@ export const ModelName = {
   User: 'User',
   OAuthAccount: 'OAuthAccount',
   RefreshToken: 'RefreshToken',
-  RevokedToken: 'RevokedToken',
   LoginAttempt: 'LoginAttempt',
   PasswordResetToken: 'PasswordResetToken',
   OAuthState: 'OAuthState',
@@ -103,23 +102,14 @@ export type OAuthAccountScalarFieldEnum = (typeof OAuthAccountScalarFieldEnum)[k
 
 export const RefreshTokenScalarFieldEnum = {
   jti: 'jti',
-  familyId: 'familyId',
   userId: 'userId',
   replacedByJti: 'replacedByJti',
+  revoked: 'revoked',
   expiresAt: 'expiresAt',
   createdAt: 'createdAt'
 } as const
 
 export type RefreshTokenScalarFieldEnum = (typeof RefreshTokenScalarFieldEnum)[keyof typeof RefreshTokenScalarFieldEnum]
-
-
-export const RevokedTokenScalarFieldEnum = {
-  jti: 'jti',
-  expiresAt: 'expiresAt',
-  revokedAt: 'revokedAt'
-} as const
-
-export type RevokedTokenScalarFieldEnum = (typeof RevokedTokenScalarFieldEnum)[keyof typeof RevokedTokenScalarFieldEnum]
 
 
 export const LoginAttemptScalarFieldEnum = {

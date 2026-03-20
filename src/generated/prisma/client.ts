@@ -53,11 +53,6 @@ export type OAuthAccount = Prisma.OAuthAccountModel
  */
 export type RefreshToken = Prisma.RefreshTokenModel
 /**
- * Model RevokedToken
- * 
- */
-export type RevokedToken = Prisma.RevokedTokenModel
-/**
  * Model LoginAttempt
  * 
  */

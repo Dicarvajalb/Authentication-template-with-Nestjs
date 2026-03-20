@@ -1,5 +1,5 @@
 import { UserEntity } from 'src/user/interfaces/user.entities';
-import { AuthTokens, TokenPayload } from './auth.entities';
+import { AuthTokens, RefreshToken, TokenPayload } from './auth.entities';
 
 /** Injection token for AuthDBI (DIP: depend on abstraction, not concrete class). */
 export const AUTH_DB = Symbol('AUTH_DB');
@@ -11,12 +11,21 @@ export interface LoginAttemptSnapshot {
 }
 
 export interface AuthDBI {
-  findLoginAttemptByUserId(userId: string): Promise<LoginAttemptSnapshot | null>;
+  findLoginAttemptByUserId(
+    userId: string,
+  ): Promise<LoginAttemptSnapshot | null>;
   upsertLoginAttempt(
     userId: string,
     data: { failedCount: number; lockedUntil: Date | null },
   ): Promise<void>;
   deleteAllRefreshTokensForUser(userId: string): Promise<void>;
+
+  findRefreshToken(id: string): Promise<RefreshToken>;
+  saveRefreshToken(token: RefreshToken): Promise<void>;
+  revokeAndSaveTokenTransaction(
+    oldJti: string,
+    newToken: RefreshToken,
+  ): Promise<void>;
 }
 
 export interface AuthServiceI {
@@ -26,7 +35,7 @@ export interface AuthServiceI {
     password: string,
   ): Promise<{ user: UserEntity; tokens: AuthTokens }>;
   login(email: string, password: string): Promise<AuthTokens>;
-  //refresh(refreshToken: string): Promise<AuthTokens>;
+  refresh(refreshToken: string): Promise<AuthTokens>;
   logout(userId: string): Promise<void>;
   changePassword(
     userId: string,
@@ -41,7 +50,7 @@ export interface AuthPasswordServiceI {
 export interface AuthTokenServiceI {
   signAccess(payload: TokenPayload): string;
   //signRefresh(payload: TokenPayload): string;
-  verifyAccess(token: string): TokenPayload;
+  verifyAccess(token: string, expiresInMls?: number): TokenPayload;
   //verifyRefresh(token: string): TokenPayload;
   //refreshTtlMs(): number;
 }

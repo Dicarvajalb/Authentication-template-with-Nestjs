@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProfilesModule } from './profiles/profiles.module';
 import { UserModule } from './user/user.module';
+import { JWT_GUARD, JwtGuard } from './auth/guards/jwt.guard';
 
 @Module({
   imports: [
@@ -19,6 +20,6 @@ import { UserModule } from './user/user.module';
     }),
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, { provide: JWT_GUARD, useClass: JwtGuard }],
 })
 export class AppModule {}

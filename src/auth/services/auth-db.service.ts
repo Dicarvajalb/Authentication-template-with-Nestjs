@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import type { AuthDBI, LoginAttemptSnapshot } from '../interfaces/auth.utilities';
+import type {
+  AuthDBI,
+  LoginAttemptSnapshot,
+} from '../interfaces/auth.utilities';
+import { RefreshToken } from '../interfaces/auth.entities';
 
 @Injectable()
 export class AuthDBService implements AuthDBI {
@@ -43,5 +47,34 @@ export class AuthDBService implements AuthDBI {
     await this.prisma.refreshToken.deleteMany({
       where: { userId },
     });
+  }
+
+  async saveRefreshToken(token: RefreshToken): Promise<void> {
+    await this.prisma.refreshToken.create({
+      data: {
+        ...token,
+      },
+    });
+  }
+  async findRefreshToken(id: string): Promise<RefreshToken> {
+    const storedToken = await this.prisma.refreshToken.findUniqueOrThrow({
+      where: { jti: id },
+    });
+    return {
+      expiresAt: storedToken.expiresAt,
+      jti: storedToken.jti,
+      userId: storedToken.userId,
+      replacedByJti: storedToken.replacedByJti || undefined,
+      revoked: storedToken.revoked || undefined,
+    };
+  }
+  async revokeAndSaveTokenTransaction(
+    oldJti: string,
+    newToken: RefreshToken,
+  ): Promise<void> {
+    const result = await this.prisma.$transaction([
+      this.prisma.refreshToken.delete({ where: { jti: oldJti } }),
+      this.prisma.refreshToken.create({ data: { ...newToken } }),
+    ]);
   }
 }

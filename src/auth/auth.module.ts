@@ -12,7 +12,7 @@ import { AuthDBService } from './services/auth-db.service';
 import { AuthService } from './services/auth.service';
 import { AuthTokenService } from './services/auth-token.service';
 import { AuthPasswordService } from './services/auth-password.service';
-import { JwtBearerGuard } from './guards/jwt-bearer.guard';
+import { JwtBearerGuard } from './guards/jwt.guard';
 import { ChangePassValidationPipe } from './pipes/change-password.pipe';
 import { OAuthGoogleService } from './services/oauth.service';
 
@@ -43,6 +43,7 @@ import { OAuthGoogleService } from './services/oauth.service';
           secret: configService.get<string>('JWT_SECRET'),
           signOptions: {
             expiresIn: configService.get<number>('JWT_DURATION') || 6000,
+            algorithm: 'RS256',
           }, // 10 min
         };
       },

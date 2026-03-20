@@ -34,22 +34,17 @@ model OAuthAccount {
 
 model RefreshToken {
   jti           String    @id           // UUID v4
-  familyId      String                  // UUID shared across rotations
-  userId        String
+  userId        String    //usefull to group tokens
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   replacedByJti String?                 // set when rotated; non-null = already used
+  revoked       Boolean?   @default(false)
+  
   expiresAt     DateTime
   createdAt     DateTime  @default(now())
 
   @@index([userId])
-  @@index([familyId])
 }
 
-model RevokedToken {
-  jti       String   @id               // access token jti
-  expiresAt DateTime                   // used by cleanup cron
-  revokedAt DateTime @default(now())
-}
 
 model LoginAttempt {
   id          String    @id @default(uuid())

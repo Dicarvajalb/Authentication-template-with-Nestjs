@@ -121,7 +121,7 @@ export class OAuthGoogleService {
 
     const payload: TokenPayload = {
       sub: user.id,
-      email: user.email,
+      type: 'access',
     };
 
     const jwtDuration = this.config.get<number>('JWT_DURATION') ?? 6000;
