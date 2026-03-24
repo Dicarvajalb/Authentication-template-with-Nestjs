@@ -14,7 +14,8 @@ import oauthConfig from './config/oauth.config';
 import passwordConfig from './config/password.config';
 import { getEnvFilePaths } from './config/env.utils';
 import { validate } from './config/env.validation';
-import { Reflector } from '@nestjs/core';
+import { APP_GUARD, Reflector } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 @Module({
   imports: [
@@ -36,8 +37,19 @@ import { Reflector } from '@nestjs/core';
       ],
       validate,
     }),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 1000,
+        limit: 3,
+        blockDuration: 10000,
+      },
+    ]),
   ],
   controllers: [AppController],
-  providers: [AppService, { provide: JWT_GUARD, useClass: JwtGuard }],
+  providers: [
+    AppService,
+    { provide: JWT_GUARD, useClass: JwtGuard },
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+  ],
 })
 export class AppModule {}

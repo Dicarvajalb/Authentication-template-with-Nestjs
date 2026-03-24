@@ -4,7 +4,7 @@ import type {
   AuthDBI,
   LoginAttemptSnapshot,
 } from '../interfaces/auth.utilities';
-import { RefreshToken } from '../interfaces/auth.entities';
+import { JWTToken, TokenType } from '../interfaces/auth.entities';
 
 @Injectable()
 export class AuthDBService implements AuthDBI {
@@ -44,25 +44,37 @@ export class AuthDBService implements AuthDBI {
   }
 
   async deleteAllRefreshTokensForUser(userId: string): Promise<void> {
-    await this.prisma.refreshToken.deleteMany({
+    await this.prisma.jWTToken.deleteMany({
       where: { userId },
     });
   }
 
-  async saveRefreshToken(token: RefreshToken): Promise<void> {
-    await this.prisma.refreshToken.create({
+  async saveToken(token: JWTToken): Promise<void> {
+    await this.prisma.jWTToken.create({
       data: {
         ...token,
       },
     });
   }
-  async findRefreshToken(id: string): Promise<RefreshToken> {
-    const storedToken = await this.prisma.refreshToken.findUniqueOrThrow({
+  async updateAllRevokedByUserId(
+    userId: string,
+    newRevoked: boolean,
+  ): Promise<void> {
+    await this.prisma.jWTToken.updateMany({
+      where: { jti: userId },
+      data: {
+        revoked: newRevoked,
+      },
+    });
+  }
+  async findToken(id: string): Promise<JWTToken> {
+    const storedToken = await this.prisma.jWTToken.findUniqueOrThrow({
       where: { jti: id },
     });
     return {
       expiresAt: storedToken.expiresAt,
       jti: storedToken.jti,
+      type: storedToken.type as TokenType,
       userId: storedToken.userId,
       replacedByJti: storedToken.replacedByJti || undefined,
       revoked: storedToken.revoked || undefined,
@@ -70,11 +82,23 @@ export class AuthDBService implements AuthDBI {
   }
   async revokeAndSaveTokenTransaction(
     oldJti: string,
-    newToken: RefreshToken,
+    newToken: JWTToken,
   ): Promise<void> {
-    const result = await this.prisma.$transaction([
-      this.prisma.refreshToken.delete({ where: { jti: oldJti } }),
-      this.prisma.refreshToken.create({ data: { ...newToken } }),
+    await this.prisma.$transaction([
+      this.prisma.jWTToken.delete({ where: { jti: oldJti } }),
+      this.prisma.jWTToken.create({ data: { ...newToken } }),
     ]);
+  }
+
+  async deleteExpiredTokens(now: Date): Promise<number> {
+    const { count } = await this.prisma.jWTToken.deleteMany({
+      where: {
+        expiresAt: {
+          lt: now,
+        },
+      },
+    });
+
+    return count;
   }
 }

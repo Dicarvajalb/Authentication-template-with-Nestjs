@@ -1,5 +1,5 @@
 import { UserEntity } from 'src/user/interfaces/user.entities';
-import { AuthTokens, RefreshToken, TokenPayload } from './auth.entities';
+import { AuthTokens, JWTToken, TokenPayload } from './auth.entities';
 
 /** Injection token for AuthDBI (DIP: depend on abstraction, not concrete class). */
 export const AUTH_DB = Symbol('AUTH_DB');
@@ -20,12 +20,14 @@ export interface AuthDBI {
   ): Promise<void>;
   deleteAllRefreshTokensForUser(userId: string): Promise<void>;
 
-  findRefreshToken(id: string): Promise<RefreshToken>;
-  saveRefreshToken(token: RefreshToken): Promise<void>;
+  findToken(id: string): Promise<JWTToken>;
+  saveToken(token: JWTToken): Promise<void>;
   revokeAndSaveTokenTransaction(
     oldJti: string,
-    newToken: RefreshToken,
+    newToken: JWTToken,
   ): Promise<void>;
+  updateAllRevokedByUserId(userId: string, newRevoked: boolean): Promise<void>;
+  deleteExpiredTokens(now: Date): Promise<number>;
 }
 
 export interface AuthServiceI {

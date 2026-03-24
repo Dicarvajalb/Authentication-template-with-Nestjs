@@ -2,8 +2,10 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigType } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { HttpModule } from '@nestjs/axios';
+import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { UserModule } from 'src/user/user.module';
+import { RevokedCronToken } from './cron/revoked';
 import { AUTH_DB } from './interfaces/auth.utilities';
 import { AuthController } from './auth.controller';
 import { LoginValidationPipe } from './pipes/login.pipe';
@@ -25,6 +27,7 @@ import authConfig from 'src/config/auth.config';
     AuthPasswordService,
     AuthDBService,
     OAuthGoogleService,
+    RevokedCronToken,
     { provide: AUTH_DB, useClass: AuthDBService },
     LoginValidationPipe,
     RegisterValidationPipe,
@@ -34,6 +37,7 @@ import authConfig from 'src/config/auth.config';
     PrismaModule,
     UserModule,
     HttpModule,
+    ScheduleModule.forRoot(),
     ConfigModule.forFeature(authConfig),
     JwtModule.registerAsync({
       global: true,

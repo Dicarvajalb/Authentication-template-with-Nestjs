@@ -13,8 +13,9 @@ import { UserCRUDService } from 'src/user/services/user-crud.service';
 import { UserEntity } from 'src/user/interfaces/user.entities';
 import {
   AuthTokens,
-  RefreshToken,
+  JWTToken,
   TokenPayload,
+  TokenType,
 } from '../interfaces/auth.entities';
 import {
   AUTH_DB,
@@ -81,14 +82,15 @@ export class AuthService implements AuthServiceI {
       type: 'access',
     };
 
-    const refresh_token_internal: RefreshToken = {
+    const refresh_token_internal: JWTToken = {
       userId: user.id,
+      type: 'refresh',
       expiresAt: new Date(
         Date.now() + this.authConfiguration.jwtRefreshDurationMs,
       ),
       jti: randomUUID(),
     };
-    this.authDb.saveRefreshToken(refresh_token_internal);
+    this.authDb.saveToken(refresh_token_internal);
 
     const refresh_token_external: TokenPayload = {
       sub: refresh_token_internal.userId,
@@ -166,11 +168,9 @@ export class AuthService implements AuthServiceI {
     }
   }
 
-  public async logout(userId: string): Promise<void> {
-    const user = await this.userService.findById(userId);
-    if (!user) {
-      throw new InternalServerErrorException('User could not be found');
-    }
+  public async logout(token: string): Promise<void> {
+    const decoded = this.tokenService.decodeToken(token);
+    this.authDb.updateAllRevokedByUserId(decoded.sub, false);
   }
 
   /**
@@ -211,7 +211,7 @@ export class AuthService implements AuthServiceI {
     if (validatedToken.type !== 'refresh') {
       throw new UnauthorizedException();
     }
-    const storedToken = await this.authDb.findRefreshToken(validatedToken.jti);
+    const storedToken = await this.authDb.findToken(validatedToken.jti);
     if (storedToken.revoked) {
       throw new UnauthorizedException();
     }
@@ -241,8 +241,11 @@ export class AuthService implements AuthServiceI {
     );
     this.authDb.revokeAndSaveTokenTransaction(storedToken.jti, {
       jti: randomUUID(),
+      type: storedToken.type as TokenType,
       userId: storedToken.userId,
-      expiresAt: new Date(Date.now() + this.authConfiguration.jwtRefreshDurationMs),
+      expiresAt: new Date(
+        Date.now() + this.authConfiguration.jwtRefreshDurationMs,
+      ),
     });
     return { access_token: newAccessToken, refresh_token: newRefreshToken };
   }

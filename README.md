@@ -162,10 +162,9 @@ This module provides a reusable, production-grade **authentication layer** built
 
 ### 5.1 Rate Limiting
 
-| ID     | Requirement                                                                                                                                                                                                                            |
-| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| SEC-01 | `@nestjs/throttler` MUST be applied to `POST /auth/login`, `POST /auth/register`, `POST /auth/refresh`, `POST /auth/forgot-password`, and `GET /auth/google` with independently configurable TTL and limit per endpoint _(OWASP A07)_. |
-| SEC-02 | Rate limit configuration MUST be injectable via `SecurityModuleOptions.rateLimit` with per-endpoint overrides.                                                                                                                         |
+| ID     | Requirement                                                                                                                                                                                    |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SEC-01 | `@nestjs/throttler` MUST be applied to `POST /auth/login`, `POST /auth/register`, `POST /auth/refresh`, `POST /auth/forgot-password`, and `GET /auth/google` with TTL and limit _(OWASP A07)_. |
 
 ### 5.2 Input Validation
 
@@ -183,23 +182,10 @@ This module provides a reusable, production-grade **authentication layer** built
 
 ### 5.4 Response Hardening
 
-| ID     | Requirement                                                                                                                                                                                                                     |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| SEC-07 | All auth responses MUST use `ClassSerializerInterceptor` with `@Exclude()` on sensitive fields. `PasswordHash`, internal tokens, and DB IDs not needed by the client MUST be excluded _(OWASP A02)_.                            |
+| ID  | Requirement |
+| --- | ----------- |
+
 | SEC-08 | Error responses from auth endpoints MUST return generic messages only. Stack traces MUST be suppressed in production via NestJS exception filters. No error message MUST reveal whether an email/username exists _(OWASP A07)_. |
-
----
-
-## 6. Audit & Observability
-
-| ID       | Requirement                                                                                                                                                                                                                                                                                                |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| AUDIT-01 | `AuditService` MUST write a record to `AuditLog` for every event: `REGISTER`, `LOGIN_SUCCESS`, `LOGIN_FAILURE`, `LOGIN_LOCKED`, `LOGOUT`, `LOGOUT_ALL`, `TOKEN_REFRESH`, `TOKEN_REPLAY_DETECTED`, `PASSWORD_CHANGED`, `PASSWORD_RESET_REQUESTED`, `PASSWORD_RESET_SUCCESS`, `GOOGLE_LOGIN`, `GOOGLE_LINK`. |
-| AUDIT-02 | Each `AuditLog` record MUST capture: `userId` (if resolved), `event`, `provider`, `ip`, `userAgent`, and a `meta` JSON blob for event-specific data.                                                                                                                                                       |
-| AUDIT-03 | Sensitive data (passwords, raw tokens, secrets) MUST never appear in any `AuditLog` record or NestJS `Logger` output _(OWASP A09)_.                                                                                                                                                                        |
-| AUDIT-04 | `AuditService` MUST use NestJS built-in `Logger` for console output. A custom `LoggerService` MUST be injectable via `SecurityModuleOptions`.                                                                                                                                                              |
-| AUDIT-05 | `AuditService` MUST emit a `@nestjs/event-emitter` event for each audit action so consumers can attach side effects (e.g. alerting) without modifying the module.                                                                                                                                          |
-| AUDIT-06 | `AuditService` MUST expose `getAuditLog(filters?: AuditLogFilters)` returning paginated `AuditLog` rows via Prisma.                                                                                                                                                                                        |
 
 ---
 

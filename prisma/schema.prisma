@@ -9,42 +9,41 @@ datasource db {
 }
 
 model User {
-  id                 String              @id @default(uuid())
-  email              String              @unique
-  username           String              @unique
-  passwordHash       String?             // null for Google-only accounts
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  refreshTokens      RefreshToken[] 
-  loginAttempt       LoginAttempt?
-  passwordResetTokens PasswordResetToken[]
-  oAuthAccount      OAuthAccount?
-  auditLogs          AuditLog[]
+  id           String        @id @default(uuid())
+  email        String        @unique
+  username     String        @unique
+  passwordHash String? // null for Google-only accounts
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  JWTTokens    JWTToken[]
+  loginAttempt LoginAttempt?
+  oAuthAccount OAuthAccount?
+  auditLogs    AuditLog[]
 }
 
 model OAuthAccount {
-  id         String   @id @default(uuid())
-  sub        String   @unique          // OpenID unique identifier
-  email      String
-  name       String?
-  userId     String   @unique
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt  DateTime @default(now())
+  id        String   @id @default(uuid())
+  sub       String   @unique // OpenID unique identifier
+  email     String
+  name      String?
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
 }
 
-model RefreshToken {
-  jti           String    @id           // UUID v4
-  userId        String    //usefull to group tokens
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  replacedByJti String?                 // set when rotated; non-null = already used
-  revoked       Boolean?   @default(false)
-  
-  expiresAt     DateTime
-  createdAt     DateTime  @default(now())
+model JWTToken {
+  jti           String   @id // UUID v4
+  type          String
+  userId        String //usefull to group tokens
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replacedByJti String? // set when rotated; non-null = already used
+  revoked       Boolean? @default(false)
+
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 
   @@index([userId])
 }
-
 
 model LoginAttempt {
   id          String    @id @default(uuid())
@@ -55,18 +54,9 @@ model LoginAttempt {
   updatedAt   DateTime  @updatedAt
 }
 
-model PasswordResetToken {
-  id        String   @id @default(uuid())
-  jti       String   @unique            // JWT jti — enforces single use
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-}
-
 model OAuthState {
   id        String   @id @default(uuid())
-  state     String   @unique            // random UUID sent to Google
+  state     String   @unique // random UUID sent to Google
   expiresAt DateTime
   createdAt DateTime @default(now())
 }
@@ -75,8 +65,8 @@ model AuditLog {
   id        String   @id @default(uuid())
   userId    String?
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  event     String                       // e.g. LOGIN_SUCCESS, LOGOUT, TOKEN_REPLAYED
-  provider  String?                      // 'credentials' | 'google'
+  event     String // e.g. LOGIN_SUCCESS, LOGOUT, TOKEN_REPLAYED
+  provider  String? // 'credentials' | 'google'
   ip        String?
   userAgent String?
   meta      Json?

@@ -12,9 +12,10 @@ export interface TokenPayload {
   type: TokenType;
 }
 
-export interface RefreshToken {
+export interface JWTToken {
   jti: string;
   userId: string;
+  type: TokenType;
   replacedByJti?: string;
   revoked?: boolean;
   expiresAt: Date;

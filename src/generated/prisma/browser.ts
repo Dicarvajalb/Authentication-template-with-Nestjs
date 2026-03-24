@@ -28,20 +28,15 @@ export type User = Prisma.UserModel
  */
 export type OAuthAccount = Prisma.OAuthAccountModel
 /**
- * Model RefreshToken
+ * Model JWTToken
  * 
  */
-export type RefreshToken = Prisma.RefreshTokenModel
+export type JWTToken = Prisma.JWTTokenModel
 /**
  * Model LoginAttempt
  * 
  */
 export type LoginAttempt = Prisma.LoginAttemptModel
-/**
- * Model PasswordResetToken
- * 
- */
-export type PasswordResetToken = Prisma.PasswordResetTokenModel
 /**
  * Model OAuthState
  * 

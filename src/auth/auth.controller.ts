@@ -2,12 +2,12 @@ import {
   Body,
   Controller,
   Get,
+  Inject,
   HttpCode,
   HttpStatus,
-  Inject,
+  Query,
   Patch,
   Post,
-  Query,
   Req,
   Res,
   UsePipes,
@@ -30,6 +30,8 @@ import { AuthTokenService } from './services/auth-token.service';
 import { Public } from 'src/common/decorators/public';
 import appConfig from 'src/config/app.config';
 import authConfig from 'src/config/auth.config';
+import { Cookie } from 'src/common/decorators/cookies';
+import { RefreshDto } from './dto/refresh.dto';
 
 const ACCESS_TOKEN_COOKIE = 'access_token';
 
@@ -173,5 +175,14 @@ export class AuthController {
 
     this.setAccessTokenCookie(res, tokens.token, tokens.expiresIn);
     return { access_token: tokens.token };
+  }
+
+  @Public()
+  @Post('refresh')
+  async refreshToken(
+    @Res() res: Response,
+    @Cookie(ACCESS_TOKEN_COOKIE) a_token: string,
+  ): Promise<RefreshDto> {
+    return await this.authService.refresh(a_token);
   }
 }
