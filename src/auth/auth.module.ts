@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { ConfigModule, ConfigType } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { HttpModule } from '@nestjs/axios';
 import { PrismaModule } from 'src/prisma/prisma.module';
@@ -12,19 +12,19 @@ import { AuthDBService } from './services/auth-db.service';
 import { AuthService } from './services/auth.service';
 import { AuthTokenService } from './services/auth-token.service';
 import { AuthPasswordService } from './services/auth-password.service';
-import { JwtBearerGuard } from './guards/jwt.guard';
 import { ChangePassValidationPipe } from './pipes/change-password.pipe';
 import { OAuthGoogleService } from './services/oauth.service';
+import authConfig from 'src/config/auth.config';
 
 @Module({
   controllers: [AuthController],
+  exports: [AuthTokenService],
   providers: [
     AuthService,
     AuthTokenService,
     AuthPasswordService,
     AuthDBService,
     OAuthGoogleService,
-    JwtBearerGuard,
     { provide: AUTH_DB, useClass: AuthDBService },
     LoginValidationPipe,
     RegisterValidationPipe,
@@ -34,17 +34,18 @@ import { OAuthGoogleService } from './services/oauth.service';
     PrismaModule,
     UserModule,
     HttpModule,
+    ConfigModule.forFeature(authConfig),
     JwtModule.registerAsync({
       global: true,
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => {
-        console.log(configService.get<string>('JWT_DURATION'));
+      imports: [ConfigModule.forFeature(authConfig)],
+      inject: [authConfig.KEY],
+      useFactory: (config: ConfigType<typeof authConfig>) => {
         return {
-          secret: configService.get<string>('JWT_SECRET'),
+          secret: config.jwtSecret,
           signOptions: {
-            expiresIn: configService.get<number>('JWT_DURATION') || 6000,
+            expiresIn: config.jwtDurationMs,
             algorithm: 'RS256',
-          }, // 10 min
+          },
         };
       },
     }),

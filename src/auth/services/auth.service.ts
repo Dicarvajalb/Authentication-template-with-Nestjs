@@ -6,8 +6,9 @@ import {
   InternalServerErrorException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import type { ConfigType } from '@nestjs/config';
 import { Prisma } from 'src/generated/prisma/client';
+import authConfig from 'src/config/auth.config';
 import { UserCRUDService } from 'src/user/services/user-crud.service';
 import { UserEntity } from 'src/user/interfaces/user.entities';
 import {
@@ -24,16 +25,14 @@ import { AuthPasswordService } from './auth-password.service';
 import { AuthTokenService } from './auth-token.service';
 import { randomUUID } from 'crypto';
 
-const DEFAULT_LOCKOUT_MAX_ATTEMPTS = 5;
-const DEFAULT_LOCKOUT_DURATION_MINUTES = 15;
-
 @Injectable()
 export class AuthService implements AuthServiceI {
   constructor(
     private readonly passwordService: AuthPasswordService,
     private readonly tokenService: AuthTokenService,
     private readonly userService: UserCRUDService,
-    private readonly configService: ConfigService,
+    @Inject(authConfig.KEY)
+    private readonly authConfiguration: ConfigType<typeof authConfig>,
     @Inject(AUTH_DB) private readonly authDb: AuthDBI,
   ) {}
 
@@ -44,12 +43,8 @@ export class AuthService implements AuthServiceI {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const maxAttempts =
-      this.configService.get<number>('LOCKOUT_MAX_ATTEMPTS') ??
-      DEFAULT_LOCKOUT_MAX_ATTEMPTS;
-    const durationMinutes =
-      this.configService.get<number>('LOCKOUT_DURATION_MINUTES') ??
-      DEFAULT_LOCKOUT_DURATION_MINUTES;
+    const maxAttempts = this.authConfiguration.lockoutMaxAttempts;
+    const durationMinutes = this.authConfiguration.lockoutDurationMinutes;
 
     const attempt = await this.authDb.findLoginAttemptByUserId(user.id);
 
@@ -89,10 +84,8 @@ export class AuthService implements AuthServiceI {
     const refresh_token_internal: RefreshToken = {
       userId: user.id,
       expiresAt: new Date(
-        Date.now() +
-          (this.configService.get<number>('JWT_REFRESH_DURATION') || 0),
+        Date.now() + this.authConfiguration.jwtRefreshDurationMs,
       ),
-      familyId: randomUUID(),
       jti: randomUUID(),
     };
     this.authDb.saveRefreshToken(refresh_token_internal);
@@ -143,12 +136,12 @@ export class AuthService implements AuthServiceI {
 
       const payload: TokenPayload = {
         sub: user.id, // safe for BigInt
-        email: user.email,
+        type: 'access',
       };
 
       const tokens: AuthTokens = {
-        token: this.tokenService.signAccess(payload),
-        expiresIn: this.configService.get<number>('JWT_DURATION') || 36000,
+        access_token: this.tokenService.signAccess(payload),
+        refresh_token: '',
       };
 
       return { user, tokens };
@@ -235,7 +228,7 @@ export class AuthService implements AuthServiceI {
     };
     const newAccessToken: string = this.tokenService.signAccess(
       newAccessPayload,
-      this.configService.get<number>('JWT_REFRESH_DURATION'),
+      this.authConfiguration.jwtRefreshDurationMs,
     );
     const newRefreshPayload: TokenPayload = {
       sub: storedToken.userId,
@@ -244,15 +237,12 @@ export class AuthService implements AuthServiceI {
     };
     const newRefreshToken: string = this.tokenService.signAccess(
       newRefreshPayload,
-      this.configService.get<number>('JWT_REFRESH_DURATION'),
+      this.authConfiguration.jwtRefreshDurationMs,
     );
     this.authDb.revokeAndSaveTokenTransaction(storedToken.jti, {
       jti: randomUUID(),
       userId: storedToken.userId,
-      expiresAt: new Date(
-        Date.now() +
-          (this.configService.get<number>('JWT_REFRESH_DURATION') || 0),
-      ),
+      expiresAt: new Date(Date.now() + this.authConfiguration.jwtRefreshDurationMs),
     });
     return { access_token: newAccessToken, refresh_token: newRefreshToken };
   }

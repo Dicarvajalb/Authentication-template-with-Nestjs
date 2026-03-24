@@ -1,14 +1,17 @@
 import { HttpService } from '@nestjs/axios';
 import {
   ConflictException,
+  Inject,
   Injectable,
   InternalServerErrorException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import type { ConfigType } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { randomUUID, createPublicKey } from 'node:crypto';
 import { firstValueFrom } from 'rxjs';
+import authConfig from 'src/config/auth.config';
+import oauthConfig from 'src/config/oauth.config';
 import { PrismaService } from 'src/prisma/prisma.service';
 import type { TokenPayload } from '../interfaces/auth.entities';
 import { AuthTokenService } from './auth-token.service';
@@ -53,26 +56,19 @@ export class OAuthGoogleService {
     'https://www.googleapis.com/oauth2/v3/certs';
 
   constructor(
-    private readonly config: ConfigService,
     private readonly http: HttpService,
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly tokenService: AuthTokenService,
-  ) {
-    // Fail fast if required config is missing
-    const clientId = this.config.get<string>('GOOGLE_CLIENT_ID');
-    const clientSecret = this.config.get<string>('GOOGLE_CLIENT_SECRET');
-    const callbackUrl = this.config.get<string>('GOOGLE_CALLBACK_URL');
-    if (!clientId || !clientSecret || !callbackUrl) {
-      throw new InternalServerErrorException(
-        'Google OAuth config is missing (GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/GOOGLE_CALLBACK_URL)',
-      );
-    }
-  }
+    @Inject(oauthConfig.KEY)
+    private readonly oauthConfiguration: ConfigType<typeof oauthConfig>,
+    @Inject(authConfig.KEY)
+    private readonly authConfiguration: ConfigType<typeof authConfig>,
+  ) {}
   //Build the redirect url with Client ID, client secret and callback endpoint
   public async createAuthRedirectUrl(): Promise<{ url: string }> {
-    const clientId = this.config.get<string>('GOOGLE_CLIENT_ID')!;
-    const callbackUrl = this.config.get<string>('GOOGLE_CALLBACK_URL')!;
+    const clientId = this.oauthConfiguration.googleClientId;
+    const callbackUrl = this.oauthConfiguration.googleCallbackUrl;
 
     const state = randomUUID();
     const expiresAt = new Date(Date.now() + OAuthGoogleService.STATE_TTL_MS);
@@ -124,10 +120,9 @@ export class OAuthGoogleService {
       type: 'access',
     };
 
-    const jwtDuration = this.config.get<number>('JWT_DURATION') ?? 6000;
     return {
       token: this.tokenService.signAccess(payload),
-      expiresIn: jwtDuration,
+      expiresIn: this.authConfiguration.jwtDurationMs,
     };
   }
 
@@ -152,9 +147,9 @@ export class OAuthGoogleService {
   private async exchangeCodeForTokens(
     code: string,
   ): Promise<GoogleTokenResponse> {
-    const clientId = this.config.get<string>('GOOGLE_CLIENT_ID')!;
-    const clientSecret = this.config.get<string>('GOOGLE_CLIENT_SECRET')!;
-    const callbackUrl = this.config.get<string>('GOOGLE_CALLBACK_URL')!;
+    const clientId = this.oauthConfiguration.googleClientId;
+    const clientSecret = this.oauthConfiguration.googleClientSecret;
+    const callbackUrl = this.oauthConfiguration.googleCallbackUrl;
 
     const body = new URLSearchParams({
       code,
@@ -193,7 +188,7 @@ export class OAuthGoogleService {
   }
 
   private async verifyGoogleIdToken(idToken: string): Promise<any> {
-    const clientId = this.config.get<string>('GOOGLE_CLIENT_ID')!;
+    const clientId = this.oauthConfiguration.googleClientId;
 
     try {
       const ticket = await GoogleClient.verifyIdToken({

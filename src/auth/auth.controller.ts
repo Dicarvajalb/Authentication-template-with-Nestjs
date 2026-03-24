@@ -4,16 +4,16 @@ import {
   Get,
   HttpCode,
   HttpStatus,
-  Query,
+  Inject,
   Patch,
   Post,
+  Query,
   Req,
   Res,
-  UseGuards,
   UsePipes,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import type { ConfigType } from '@nestjs/config';
 import type { Request, Response } from 'express';
 
 import type { LoginDto } from './dto/login.dto';
@@ -28,6 +28,8 @@ import type { TokenPayload } from './interfaces/auth.entities';
 import { OAuthGoogleService } from './services/oauth.service';
 import { AuthTokenService } from './services/auth-token.service';
 import { Public } from 'src/common/decorators/public';
+import appConfig from 'src/config/app.config';
+import authConfig from 'src/config/auth.config';
 
 const ACCESS_TOKEN_COOKIE = 'access_token';
 
@@ -37,9 +39,12 @@ type RequestWithUser = Request & { user: TokenPayload };
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
-    private readonly configService: ConfigService,
     private readonly OAuthGoogleService: OAuthGoogleService,
     private readonly tokenService: AuthTokenService,
+    @Inject(appConfig.KEY)
+    private readonly appConfiguration: ConfigType<typeof appConfig>,
+    @Inject(authConfig.KEY)
+    private readonly authConfiguration: ConfigType<typeof authConfig>,
   ) {}
 
   private setAccessTokenCookie(
@@ -47,10 +52,9 @@ export class AuthController {
     token: string,
     expiresInSeconds: number,
   ): void {
-    const secure = this.configService.get<string>('NODE_ENV') === 'production';
     res.cookie(ACCESS_TOKEN_COOKIE, token, {
       httpOnly: true,
-      secure,
+      secure: this.appConfiguration.isProduction,
       sameSite: 'strict',
       path: '/',
       maxAge: expiresInSeconds * 1000,
@@ -58,10 +62,9 @@ export class AuthController {
   }
 
   private clearAccessTokenCookie(res: Response): void {
-    const secure = this.configService.get<string>('NODE_ENV') === 'production';
     res.clearCookie(ACCESS_TOKEN_COOKIE, {
       httpOnly: true,
-      secure,
+      secure: this.appConfiguration.isProduction,
       sameSite: 'strict',
       path: '/',
     });
@@ -82,9 +85,9 @@ export class AuthController {
     this.setAccessTokenCookie(
       res,
       serviceRes.tokens.access_token,
-      this.configService.get<number>('JWT_DURATION') || 600000,
+      this.authConfiguration.jwtDurationMs,
     );
-    return { access_token: serviceRes.tokens.token };
+    return { access_token: serviceRes.tokens.access_token };
   }
 
   @Post('login')
@@ -95,8 +98,12 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ): Promise<AuthDTO> {
     const tokens = await this.authService.login(data.email, data.password);
-    this.setAccessTokenCookie(res, tokens.token, tokens.expiresIn);
-    return { access_token: tokens.token };
+    this.setAccessTokenCookie(
+      res,
+      tokens.access_token,
+      this.authConfiguration.jwtDurationMs,
+    );
+    return { access_token: tokens.access_token };
   }
 
   @Post('logout')
@@ -166,12 +173,5 @@ export class AuthController {
 
     this.setAccessTokenCookie(res, tokens.token, tokens.expiresIn);
     return { access_token: tokens.token };
-  }
-
-  @Public()
-  @Get('google')
-  async googleAuth(@Res() res: Response): Promise<void> {
-    const { url } = await this.OAuthGoogleService.createAuthRedirectUrl();
-    res.redirect(url);
   }
 }

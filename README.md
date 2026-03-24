@@ -7,13 +7,13 @@
 
 ## SOLID map
 
-| Principle | Where                                                                                                                                                                      |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **S**RP   | One class, one job — `PasswordService` hashes, `TokenService` signs, `AuthService` orchestrates                                                                            |
-| **O**CP   | New auth strategy → new guard/service file. New role/resource → add a row to the map in `permission.service.ts`. Zero edits to existing code                               |
-| **L**SP   | `PrismaUserRepository` satisfies `IUserRepository`; swap in any alternative and nothing breaks                                                                             |
-| **I**SP   | 5 narrow interfaces (`IPasswordService`, `ITokenService`, `IPermissionService`, `IUserRepository`, `ITokenRepository`) — no consumer is forced to implement unused methods |
-| **D**IP   | `auth.module.ts` is the only place concrete classes are named. Every service & guard depends on a `Symbol` token, not a class                                              |
+| Principle | Where                                                                                                                                        |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **S**RP   | One class, one job — `PasswordService` hashes, `TokenService` signs, `AuthService` orchestrates                                              |
+| **O**CP   | New auth strategy → new guard/service file. New role/resource → add a row to the map in `permission.service.ts`. Zero edits to existing code |
+| **L**SP   | `UserDBService` satisfies `UserDBI`; swap in any alternative and nothing breaks                                                              |
+| **I**SP   | Small interfaces pattern (`user.utilities.ts`, `auth.utilities.ts`) — no consumer is forced to implement unused methods                      |
+| **D**IP   | `auth.module.ts` is the only place concrete classes are named. Every service & guard depends on a `Symbol` token, not a class                |
 
 ---
 
@@ -134,20 +134,19 @@ This module provides a reusable, production-grade **authentication layer** built
 
 ### 4.3 Token Refresh & Rotation
 
-| ID     | Requirement                                                                                                                                                                         |
-| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| JWT-09 | `AuthController` MUST expose `POST /auth/refresh` accepting the refresh token (from `httpOnly` cookie, configurable).                                                               |
-| JWT-10 | `TokenService.refreshTokens()` MUST verify the refresh token's signature, expiry, `type: "refresh"` claim, and presence in the `RefreshToken` PostgreSQL table.                     |
-| JWT-11 | **Refresh token rotation MUST be enforced**: on every valid refresh, the old `RefreshToken` row MUST be deleted and a new token pair issued in a single Prisma transaction.         |
-| JWT-13 | `RefreshToken` records MUST store: `jti`, `familyId`, `userId`, `expiresAt`, `createdAt`, `replacedByJti` (nullable). `replacedByJti` enables detection of replayed rotated tokens. |
+| ID     | Requirement                                                                                                                                                                 |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| JWT-09 | `AuthController` MUST expose `POST /auth/refresh` accepting the refresh token (from `httpOnly` cookie, configurable).                                                       |
+| JWT-10 | `TokenService.refreshTokens()` MUST verify the refresh token's signature, expiry, `type: "refresh"` claim, and presence in the `RefreshToken` PostgreSQL table.             |
+| JWT-11 | **Refresh token rotation MUST be enforced**: on every valid refresh, the old `RefreshToken` row MUST be revoked and a new token pair issued in a single Prisma transaction. |
+| JWT-13 | `RefreshToken` records MUST store: `jti`, `userId`, `expiresAt`, `createdAt`, `replacedByJti` (nullable). `replacedByJti` enables detection of replayed rotated tokens.     |
 
 ### 4.4 Token Revocation & Logout
 
-| ID     | Requirement                                                                                                                                                                                                 |
-| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| JWT-15 | `AuthController` MUST expose `POST /auth/logout` (requires valid JWT) that revokes the current access token (`jti` → `RevokedToken`) and deletes the associated `RefreshToken` row.                         |
-| JWT-16 | `AuthController` MUST expose `POST /auth/logout-all` (requires valid JWT) that revokes all refresh token families for the user and bulk-inserts their active access token `jti` values into `RevokedToken`. |
-| JWT-17 | A `@Cron` job (via `@nestjs/schedule`) MUST run daily to delete expired rows from `RevokedToken` and `RefreshToken` tables. The purge interval MUST be configurable.                                        |
+| ID     | Requirement                                                                                                                                                                         |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| JWT-15 | `AuthController` MUST expose `POST /auth/logout` (requires valid JWT) that revokes the current access token (`jti` → `RevokedToken`) and deletes the associated `RefreshToken` row. |
+| JWT-17 | A `@Cron` job (via `@nestjs/schedule`) MUST run daily to delete expired rows from `RevokedToken` and `RefreshToken` tables. The purge interval MUST be configurable.                |
 
 ### 4.5 Cookie Transport (Optional)
 
@@ -191,99 +190,7 @@ This module provides a reusable, production-grade **authentication layer** built
 
 ---
 
-## 6. Prisma Data Model
-
-The module MUST ship a reference `prisma/schema.prisma` defining the following models:
-
-```prisma
-model User {
-  id                 String              @id @default(uuid())
-  email              String              @unique
-  username           String              @unique
-  passwordHash       String?             // null for Google-only accounts
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  refreshTokens      RefreshToken[]
-  loginAttempt       LoginAttempt?
-  passwordResetTokens PasswordResetToken[]
-  googleAccount      GoogleAccount?
-  auditLogs          AuditLog[]
-}
-
-model GoogleAccount {
-  id         String   @id @default(uuid())
-  sub        String   @unique          // Google's unique user ID
-  email      String
-  name       String?
-  picture    String?
-  userId     String   @unique
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt  DateTime @default(now())
-}
-
-model RefreshToken {
-  jti           String    @id           // UUID v4
-  familyId      String                  // UUID shared across rotations
-  userId        String
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  replacedByJti String?                 // set when rotated; non-null = already used
-  expiresAt     DateTime
-  createdAt     DateTime  @default(now())
-
-  @@index([userId])
-  @@index([familyId])
-}
-
-model RevokedToken {
-  jti       String   @id               // access token jti
-  expiresAt DateTime                   // used by cleanup cron
-  revokedAt DateTime @default(now())
-}
-
-model LoginAttempt {
-  id          String    @id @default(uuid())
-  userId      String    @unique
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  failedCount Int       @default(0)
-  lockedUntil DateTime?
-  updatedAt   DateTime  @updatedAt
-}
-
-model PasswordResetToken {
-  id        String   @id @default(uuid())
-  jti       String   @unique            // JWT jti — enforces single use
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-}
-
-model OAuthState {
-  id        String   @id @default(uuid())
-  state     String   @unique            // random UUID sent to Google
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-}
-
-model AuditLog {
-  id        String   @id @default(uuid())
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  event     String                       // e.g. LOGIN_SUCCESS, LOGOUT, TOKEN_REPLAYED
-  provider  String?                      // 'credentials' | 'google'
-  ip        String?
-  userAgent String?
-  meta      Json?
-  createdAt DateTime @default(now())
-
-  @@index([userId])
-  @@index([event])
-}
-```
-
----
-
-## 7. Audit & Observability
+## 6. Audit & Observability
 
 | ID       | Requirement                                                                                                                                                                                                                                                                                                |
 | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

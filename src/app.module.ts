@@ -7,6 +7,14 @@ import { PrismaModule } from './prisma/prisma.module';
 import { ProfilesModule } from './profiles/profiles.module';
 import { UserModule } from './user/user.module';
 import { JWT_GUARD, JwtGuard } from './auth/guards/jwt.guard';
+import appConfig from './config/app.config';
+import authConfig from './config/auth.config';
+import databaseConfig from './config/database.config';
+import oauthConfig from './config/oauth.config';
+import passwordConfig from './config/password.config';
+import { getEnvFilePaths } from './config/env.utils';
+import { validate } from './config/env.validation';
+import { Reflector } from '@nestjs/core';
 
 @Module({
   imports: [
@@ -14,9 +22,19 @@ import { JWT_GUARD, JwtGuard } from './auth/guards/jwt.guard';
     AuthModule,
     UserModule,
     PrismaModule,
+    Reflector,
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: `.env.${process.env.NODE_ENV || 'development'}`,
+      cache: true,
+      envFilePath: getEnvFilePaths(),
+      load: [
+        appConfig,
+        authConfig,
+        databaseConfig,
+        oauthConfig,
+        passwordConfig,
+      ],
+      validate,
     }),
   ],
   controllers: [AppController],
