@@ -46,17 +46,46 @@ This module provides a reusable, production-grade **authentication layer** built
 
 ## 1.2 OWASP Top 10 Coverage Map
 
-| OWASP Risk                                         | Mitigations in this module                                                                                            |
-| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| **A01 – Broken Access Control**                    | `JwtAuthGuard` enforces authentication on every non-public route; `@Public()` must be explicit                        |
-| **A02 – Cryptographic Failures**                   | RS256 asymmetric signing; `scrypt` for password hashing; HTTPS-only cookies; no sensitive data in JWT payload         |
-| **A03 – Injection**                                | All inputs validated via `class-validator`; Prisma uses parameterized queries by default                              |
-| **A04 – Insecure Design**                          | Refresh token rotation; token family invalidation; account lockout; generic error messages                            |
-| **A05 – Security Misconfiguration**                | Secrets from `ConfigService` only; security headers via `helmet`; `ValidationPipe` enforced globally                  |
-| **A07 – Identification & Authentication Failures** | Lockout after N failures; rate limiting on auth endpoints; constant-time password comparison; JWT expiry + revocation |
-| **A08 – Software & Data Integrity**                | JWT signature verification on every request; token revocation table checked on each validation                        |
-| **A09 – Logging & Monitoring Failures**            | `AuditService` records all auth events to PostgreSQL; NestJS `Logger` for console output                              |
-| **A10 – SSRF**                                     | Google OAuth token exchange performed server-side with allowlisted Google endpoints only                              |
+This section defines how to convert OWASP goals into test cases. Each row should drive at least:
+
+1. One happy-path test proving the control works as intended.
+2. One abuse-path test proving the control blocks unsafe behavior.
+3. One regression test proving the failure mode is explicit, stable, and non-leaky.
+
+| OWASP Risk                                         | Security Objective                                                                                 | Test Design Guide                                                                                                                                      | Minimum Evidence to Assert                                                                 |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| **A01:2025 – Broken Access Control**               | Only explicitly public routes are reachable without authentication                                 | Test that protected endpoints reject missing, invalid, expired, malformed, and wrong-type tokens. Test that `@Public()` routes remain reachable.      | `401/403` on protected routes, success on public routes, no auth bypass via query/body     |
+| **A02:2025 – Security Misconfiguration**           | The module starts with safe defaults and fails fast when required security config is missing       | Test startup behavior with missing/invalid env vars, wrong cron expression, missing secrets, disabled headers, and invalid config combinations.       | Bootstrap fails with clear error, safe defaults apply when optional config is omitted      |
+| **A03:2025 – Software Supply Chain Failures**      | The module depends only on approved packages and rejects unreviewed security-critical dependencies | Test that approved dependency policy is enforced in review/test gates, and that no forbidden auth stack packages are introduced accidentally.         | Dependency manifest matches approved list, forbidden packages trigger failure               |
+| **A04:2025 – Cryptographic Failures**              | Secrets, passwords, cookies, and JWT contents are handled safely                                   | Test password hashing format and non-reversibility assumptions, secure cookie flags, JWT algorithm enforcement, and absence of sensitive JWT claims.   | Password is never returned, cookies are `httpOnly`, payload excludes PII, invalid alg fails |
+| **A05:2025 – Injection**                           | Untrusted input cannot alter queries, schemas, or control flow                                     | Test DTO/schema validation with malformed payloads, extra fields, SQL-like strings, script-like input, and type confusion values.                     | Request is rejected before persistence, no extra fields survive validation                 |
+| **A06:2025 – Insecure Design**                     | Auth flows fail safely under replay, rotation, lockout, and misuse scenarios                       | Test refresh token rotation, replayed refresh token rejection, expired state rejection, duplicate registration conflicts, and account lockout flows.   | Old tokens become unusable, lockout occurs after threshold, generic failures are returned  |
+| **A07:2025 – Authentication Failures**             | Login, refresh, logout, and password change flows resist brute force and identity confusion        | Test invalid login loops, lockout duration, refresh token type checks, logout invalidation, password change re-verification, and generic error text.   | Same error for bad credentials, lockout enforced, refresh requires refresh token type      |
+| **A08:2025 – Software or Data Integrity Failures** | Tokens and third-party identity data are verified before trust is granted                          | Test JWT signature verification, tampered token rejection, wrong issuer/audience rejection for Google ID tokens, and revoked token denial.             | Modified tokens fail, untrusted Google token fails, revoked entries are enforced           |
+| **A09:2025 – Security Logging and Alerting Failures** | Sensitive auth events are observable without leaking secrets                                     | Test that login success, login failure, logout, refresh replay, and OAuth errors emit auditable events without logging raw passwords or tokens.        | Audit/event record exists, secret values are absent from logs                              |
+| **A10:2025 – Mishandling of Exceptional Conditions** | Errors, timeouts, expired state, and invalid token conditions fail safely and consistently       | Test expired OAuth state, malformed JWTs, downstream Google failures, DB exceptions, and cleanup-job failures to ensure safe, generic responses.       | Failures are controlled, secrets are not leaked, and exceptional paths do not grant access |
+
+When designing test files, prefer grouping by threat area instead of controller method. Example suites:
+
+- `auth-access-control.spec.ts` for A01 and JWT guard behavior.
+- `auth-config.spec.ts` for A02 startup/config hardening cases.
+- `auth-dependencies.spec.ts` for A03 approved dependency policy checks.
+- `auth-crypto.spec.ts` for A04 and JWT/password/cookie assertions.
+- `auth-validation.spec.ts` for A05 malformed payload coverage.
+- `auth-session-security.spec.ts` for A06, A07, and A08 refresh, replay, lockout, and revocation cases.
+- `auth-observability.spec.ts` for A09 audit/logging assertions.
+- `auth-exception-handling.spec.ts` for A10 exceptional-condition behavior.
+
+Every requirement in sections 2 to 8 should trace back to at least one OWASP row above. A good test case title format is:
+
+`[Risk-ID] should <expected secure behavior> when <abuse or normal scenario>`
+
+Examples:
+
+- `A01 should reject /auth/logout when no access token is present`
+- `A06 should revoke the previous refresh token when rotation succeeds`
+- `A08 should reject a Google ID token with the wrong audience`
+- `A09 should record a login failure without logging the submitted password`
 
 ---
 
