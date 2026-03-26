@@ -1,18 +1,25 @@
 import { HttpService } from '@nestjs/axios';
 import {
   ConflictException,
+  Inject,
   Injectable,
   InternalServerErrorException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
-import { randomUUID, createPublicKey } from 'node:crypto';
+import type { ConfigType } from '@nestjs/config';
+import { randomUUID } from 'node:crypto';
+import { OAuth2Client } from 'google-auth-library';
 import { firstValueFrom } from 'rxjs';
+import oauthConfig from 'src/config/oauth.config';
 import { PrismaService } from 'src/prisma/prisma.service';
-import type { TokenPayload } from '../interfaces/auth.entities';
-import { AuthTokenService } from './auth-token.service';
-
+import type {
+  OAuthCallbackArgs,
+  OAuthCallbackResult,
+  OAuthRedirect,
+} from '../interfaces/oauth.entities';
+import type { OAuthServiceI } from '../interfaces/oauth.utilities';
+import { AuthService } from './auth.service';
+const googleClient = new OAuth2Client();
 type GoogleTokenResponse = {
   access_token: string;
   expires_in: number;
@@ -28,18 +35,8 @@ type GoogleUserInfo = {
   name?: string;
 };
 
-type GoogleJwks = {
-  keys: Array<{
-    kid: string;
-    kty: string;
-    alg?: string;
-    use?: string;
-    x5c?: string[];
-  }>;
-};
-
 @Injectable()
-export class OAuthService {
+export class OAuthGoogleService implements OAuthServiceI {
   private static readonly STATE_TTL_MS = 10 * 60 * 1000;
   private static readonly GOOGLE_AUTH_URL =
     'https://accounts.google.com/o/oauth2/v2/auth';
@@ -47,33 +44,21 @@ export class OAuthService {
     'https://oauth2.googleapis.com/token';
   private static readonly GOOGLE_USERINFO_URL =
     'https://www.googleapis.com/oauth2/v3/userinfo';
-  private static readonly GOOGLE_CERTS_URL =
-    'https://www.googleapis.com/oauth2/v3/certs';
 
   constructor(
-    private readonly config: ConfigService,
     private readonly http: HttpService,
     private readonly prisma: PrismaService,
-    private readonly jwt: JwtService,
-    private readonly tokenService: AuthTokenService,
-  ) {
-    // Fail fast if required config is missing
-    const clientId = this.config.get<string>('GOOGLE_CLIENT_ID');
-    const clientSecret = this.config.get<string>('GOOGLE_CLIENT_SECRET');
-    const callbackUrl = this.config.get<string>('GOOGLE_CALLBACK_URL');
-    if (!clientId || !clientSecret || !callbackUrl) {
-      throw new InternalServerErrorException(
-        'Google OAuth config is missing (GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/GOOGLE_CALLBACK_URL)',
-      );
-    }
-  }
-
-  public async createAuthRedirectUrl(): Promise<{ url: string }> {
-    const clientId = this.config.get<string>('GOOGLE_CLIENT_ID')!;
-    const callbackUrl = this.config.get<string>('GOOGLE_CALLBACK_URL')!;
+    private readonly authService: AuthService,
+    @Inject(oauthConfig.KEY)
+    private readonly oauthConfiguration: ConfigType<typeof oauthConfig>,
+  ) {}
+  //Build the redirect url with Client ID, client secret and callback endpoint
+  public async createAuthRedirectUrl(): Promise<OAuthRedirect> {
+    const clientId = this.oauthConfiguration.googleClientId;
+    const callbackUrl = this.oauthConfiguration.googleCallbackUrl;
 
     const state = randomUUID();
-    const expiresAt = new Date(Date.now() + OAuthService.STATE_TTL_MS);
+    const expiresAt = new Date(Date.now() + OAuthGoogleService.STATE_TTL_MS);
 
     await this.prisma.oAuthState.create({
       data: { state, expiresAt },
@@ -89,14 +74,14 @@ export class OAuthService {
       prompt: 'consent',
     });
 
-    return { url: `${OAuthService.GOOGLE_AUTH_URL}?${params.toString()}` };
+    return {
+      url: `${OAuthGoogleService.GOOGLE_AUTH_URL}?${params.toString()}`,
+    };
   }
 
-  public async handleCallback(args: {
-    code: string;
-    state: string;
-    linkingUserId?: string;
-  }): Promise<{ token: string; expiresIn: number }> {
+  public async handleCallback(
+    args: OAuthCallbackArgs,
+  ): Promise<OAuthCallbackResult> {
     await this.validateAndConsumeState(args.state);
 
     const tokenRes = await this.exchangeCodeForTokens(args.code);
@@ -111,17 +96,9 @@ export class OAuthService {
     const email = userInfo.email ?? idClaims.email;
     const name = userInfo.name ?? idClaims.name ?? null;
 
-    const user = args.linkingUserId
-      ? await this.linkToExistingUser(args.linkingUserId, { sub, email, name })
-      : await this.findOrCreateUser({ sub, email, name });
+    const user = await this.findOrCreateUser({ sub, email, name });
 
-    const payload: TokenPayload = {
-      sub: user.id,
-      email: user.email,
-    };
-
-    const jwtDuration = this.config.get<number>('JWT_DURATION') ?? 6000;
-    return { token: this.tokenService.signAccess(payload), expiresIn: jwtDuration };
+    return this.authService.issueTokenPairForUser(user.id);
   }
 
   private async validateAndConsumeState(state: string): Promise<void> {
@@ -133,17 +110,21 @@ export class OAuthService {
     }
     const now = new Date();
     if (record.expiresAt <= now) {
-      await this.prisma.oAuthState.delete({ where: { state } }).catch(() => undefined);
+      await this.prisma.oAuthState
+        .delete({ where: { state } })
+        .catch(() => undefined);
       throw new UnauthorizedException('Expired OAuth state');
     }
     // Single-use
     await this.prisma.oAuthState.delete({ where: { state } });
   }
 
-  private async exchangeCodeForTokens(code: string): Promise<GoogleTokenResponse> {
-    const clientId = this.config.get<string>('GOOGLE_CLIENT_ID')!;
-    const clientSecret = this.config.get<string>('GOOGLE_CLIENT_SECRET')!;
-    const callbackUrl = this.config.get<string>('GOOGLE_CALLBACK_URL')!;
+  private async exchangeCodeForTokens(
+    code: string,
+  ): Promise<GoogleTokenResponse> {
+    const clientId = this.oauthConfiguration.googleClientId;
+    const clientSecret = this.oauthConfiguration.googleClientSecret;
+    const callbackUrl = this.oauthConfiguration.googleCallbackUrl;
 
     const body = new URLSearchParams({
       code,
@@ -154,9 +135,13 @@ export class OAuthService {
     });
 
     const { data } = await firstValueFrom(
-      this.http.post<GoogleTokenResponse>(OAuthService.GOOGLE_TOKEN_URL, body.toString(), {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      }),
+      this.http.post<GoogleTokenResponse>(
+        OAuthGoogleService.GOOGLE_TOKEN_URL,
+        body.toString(),
+        {
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        },
+      ),
     );
 
     if (!data?.access_token || !data?.id_token) {
@@ -167,7 +152,7 @@ export class OAuthService {
 
   private async fetchUserInfo(accessToken: string): Promise<GoogleUserInfo> {
     const { data } = await firstValueFrom(
-      this.http.get<GoogleUserInfo>(OAuthService.GOOGLE_USERINFO_URL, {
+      this.http.get<GoogleUserInfo>(OAuthGoogleService.GOOGLE_USERINFO_URL, {
         headers: { Authorization: `Bearer ${accessToken}` },
       }),
     );
@@ -178,44 +163,17 @@ export class OAuthService {
   }
 
   private async verifyGoogleIdToken(idToken: string): Promise<any> {
-    const clientId = this.config.get<string>('GOOGLE_CLIENT_ID')!;
+    const clientId = this.oauthConfiguration.googleClientId;
+    try {
+      const ticket = await googleClient.verifyIdToken({
+        idToken,
+        audience: clientId,
+      });
 
-    const decoded = this.jwt.decode(idToken, { complete: true }) as
-      | { header: { kid?: string }; payload: any }
-      | null;
-    const kid = decoded?.header?.kid;
-    if (!kid) {
+      return ticket.getPayload();
+    } catch {
       throw new UnauthorizedException('Invalid Google ID token');
     }
-
-    const jwks = await this.fetchGoogleCerts();
-    const key = jwks.keys.find((k) => k.kid === kid);
-    const cert = key?.x5c?.[0];
-    if (!cert) {
-      throw new UnauthorizedException('Google signing key not found');
-    }
-
-    const pem = `-----BEGIN CERTIFICATE-----\n${cert}\n-----END CERTIFICATE-----`;
-    const publicKey = createPublicKey(pem);
-
-    // Google's issuer is commonly https://accounts.google.com; we accept both variants.
-    const payload = await this.jwt.verifyAsync(idToken, {
-      publicKey,
-      algorithms: ['RS256'],
-      audience: clientId,
-      issuer: ['accounts.google.com', 'https://accounts.google.com'],
-    });
-    return payload;
-  }
-
-  private async fetchGoogleCerts(): Promise<GoogleJwks> {
-    const { data } = await firstValueFrom(
-      this.http.get<GoogleJwks>(OAuthService.GOOGLE_CERTS_URL),
-    );
-    if (!data?.keys?.length) {
-      throw new UnauthorizedException('Google certs unavailable');
-    }
-    return data;
   }
 
   private async findOrCreateUser(profile: {
@@ -239,7 +197,10 @@ export class OAuthService {
       throw new UnauthorizedException('Google account has no email');
     }
 
-    const username = await this.generateUniqueUsername(profile.email, profile.name);
+    const username = await this.generateUniqueUsername(
+      profile.email,
+      profile.name,
+    );
 
     const user = await this.prisma.user.create({
       data: {
@@ -268,7 +229,9 @@ export class OAuthService {
       select: { userId: true },
     });
     if (alreadyLinked && alreadyLinked.userId !== userId) {
-      throw new ConflictException('OAuth account already linked to another user');
+      throw new ConflictException(
+        'OAuth account already linked to another user',
+      );
     }
 
     const user = await this.prisma.user.findUnique({
@@ -296,11 +259,17 @@ export class OAuthService {
     return user;
   }
 
-  private async generateUniqueUsername(email: string, name: string | null): Promise<string> {
-    const base =
-      (name?.trim()?.split(/\s+/)?.[0] || email.split('@')[0] || 'user')
-        .toLowerCase()
-        .replace(/[^a-z0-9_]/g, '');
+  private async generateUniqueUsername(
+    email: string,
+    name: string | null,
+  ): Promise<string> {
+    const base = (
+      name?.trim()?.split(/\s+/)?.[0] ||
+      email.split('@')[0] ||
+      'user'
+    )
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, '');
 
     for (let i = 0; i < 10; i++) {
       const suffix = randomUUID().slice(0, 6);
@@ -314,4 +283,3 @@ export class OAuthService {
     throw new InternalServerErrorException('Could not generate username');
   }
 }
-

@@ -52,11 +52,9 @@ export const AnyNull = runtime.AnyNull
 
 export const ModelName = {
   User: 'User',
-  GoogleAccount: 'GoogleAccount',
-  RefreshToken: 'RefreshToken',
-  RevokedToken: 'RevokedToken',
+  OAuthAccount: 'OAuthAccount',
+  JWTToken: 'JWTToken',
   LoginAttempt: 'LoginAttempt',
-  PasswordResetToken: 'PasswordResetToken',
   OAuthState: 'OAuthState',
   AuditLog: 'AuditLog'
 } as const
@@ -89,38 +87,29 @@ export const UserScalarFieldEnum = {
 export type UserScalarFieldEnum = (typeof UserScalarFieldEnum)[keyof typeof UserScalarFieldEnum]
 
 
-export const GoogleAccountScalarFieldEnum = {
+export const OAuthAccountScalarFieldEnum = {
   id: 'id',
   sub: 'sub',
   email: 'email',
   name: 'name',
-  picture: 'picture',
   userId: 'userId',
   createdAt: 'createdAt'
 } as const
 
-export type GoogleAccountScalarFieldEnum = (typeof GoogleAccountScalarFieldEnum)[keyof typeof GoogleAccountScalarFieldEnum]
+export type OAuthAccountScalarFieldEnum = (typeof OAuthAccountScalarFieldEnum)[keyof typeof OAuthAccountScalarFieldEnum]
 
 
-export const RefreshTokenScalarFieldEnum = {
+export const JWTTokenScalarFieldEnum = {
   jti: 'jti',
-  familyId: 'familyId',
+  type: 'type',
   userId: 'userId',
   replacedByJti: 'replacedByJti',
+  revoked: 'revoked',
   expiresAt: 'expiresAt',
   createdAt: 'createdAt'
 } as const
 
-export type RefreshTokenScalarFieldEnum = (typeof RefreshTokenScalarFieldEnum)[keyof typeof RefreshTokenScalarFieldEnum]
-
-
-export const RevokedTokenScalarFieldEnum = {
-  jti: 'jti',
-  expiresAt: 'expiresAt',
-  revokedAt: 'revokedAt'
-} as const
-
-export type RevokedTokenScalarFieldEnum = (typeof RevokedTokenScalarFieldEnum)[keyof typeof RevokedTokenScalarFieldEnum]
+export type JWTTokenScalarFieldEnum = (typeof JWTTokenScalarFieldEnum)[keyof typeof JWTTokenScalarFieldEnum]
 
 
 export const LoginAttemptScalarFieldEnum = {
@@ -132,17 +121,6 @@ export const LoginAttemptScalarFieldEnum = {
 } as const
 
 export type LoginAttemptScalarFieldEnum = (typeof LoginAttemptScalarFieldEnum)[keyof typeof LoginAttemptScalarFieldEnum]
-
-
-export const PasswordResetTokenScalarFieldEnum = {
-  id: 'id',
-  jti: 'jti',
-  userId: 'userId',
-  expiresAt: 'expiresAt',
-  createdAt: 'createdAt'
-} as const
-
-export type PasswordResetTokenScalarFieldEnum = (typeof PasswordResetTokenScalarFieldEnum)[keyof typeof PasswordResetTokenScalarFieldEnum]
 
 
 export const OAuthStateScalarFieldEnum = {
