@@ -18,22 +18,27 @@ import type { Request, Response } from 'express';
 
 import type { LoginDto } from './dto/login.dto';
 import type { RegisterDto } from './dto/register.dto';
-import { AuthDTO } from './dto/sign.dto';
+import type { RegisterResponseDTO } from './dto/register.res.dto';
 import { LoginValidationPipe } from './pipes/login.pipe';
 import { RegisterValidationPipe } from './pipes/register.pipe';
 import { AuthService } from './services/auth.service';
 import { ChangePassValidationPipe } from './pipes/change-password.pipe';
 import type { ChangePasswordDTO } from './dto/change-password.dto';
 import type { TokenPayload } from './interfaces/auth.entities';
-import { OAuthGoogleService } from './services/oauth.service';
+import {
+  OAUTH_SERVICE,
+  type OAuthServiceI,
+} from './interfaces/oauth.utilities';
 import { AuthTokenService } from './services/auth-token.service';
 import { Public } from 'src/common/decorators/public';
 import appConfig from 'src/config/app.config';
 import authConfig from 'src/config/auth.config';
 import { Cookie } from 'src/common/decorators/cookies';
 import { RefreshDto } from './dto/refresh.dto';
+import { LoginResponseDTO } from './dto/login.res.dto';
 
 const ACCESS_TOKEN_COOKIE = 'access_token';
+const REFRESH_TOKEN_COOKIE = 'refresh_token';
 
 type RequestWithUser = Request & { user: TokenPayload };
 
@@ -41,7 +46,8 @@ type RequestWithUser = Request & { user: TokenPayload };
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
-    private readonly OAuthGoogleService: OAuthGoogleService,
+    @Inject(OAUTH_SERVICE)
+    private readonly oauthService: OAuthServiceI,
     private readonly tokenService: AuthTokenService,
     @Inject(appConfig.KEY)
     private readonly appConfiguration: ConfigType<typeof appConfig>,
@@ -63,6 +69,20 @@ export class AuthController {
     });
   }
 
+  private setRefreshTokenCookie(
+    res: Response,
+    token: string,
+    expiresInMilliseconds: number,
+  ): void {
+    res.cookie(REFRESH_TOKEN_COOKIE, token, {
+      httpOnly: true,
+      secure: this.appConfiguration.isProduction,
+      sameSite: 'strict',
+      path: '/auth/refresh',
+      maxAge: expiresInMilliseconds,
+    });
+  }
+
   private clearAccessTokenCookie(res: Response): void {
     res.clearCookie(ACCESS_TOKEN_COOKIE, {
       httpOnly: true,
@@ -72,13 +92,22 @@ export class AuthController {
     });
   }
 
+  private clearRefreshTokenCookie(res: Response): void {
+    res.clearCookie(REFRESH_TOKEN_COOKIE, {
+      httpOnly: true,
+      secure: this.appConfiguration.isProduction,
+      sameSite: 'strict',
+      path: '/auth/refresh',
+    });
+  }
+
   @Post('register')
   @Public()
   @UsePipes(RegisterValidationPipe)
   async register(
     @Body() data: RegisterDto,
     @Res({ passthrough: true }) res: Response,
-  ): Promise<AuthDTO> {
+  ): Promise<RegisterResponseDTO> {
     const serviceRes = await this.authService.register(
       data.username,
       data.password,
@@ -89,7 +118,15 @@ export class AuthController {
       serviceRes.tokens.access_token,
       this.authConfiguration.jwtDurationMs,
     );
-    return { access_token: serviceRes.tokens.access_token };
+    this.setRefreshTokenCookie(
+      res,
+      serviceRes.tokens.refresh_token,
+      this.authConfiguration.jwtRefreshDurationMs,
+    );
+    return {
+      access_token: serviceRes.tokens.access_token,
+      refresh_token: serviceRes.tokens.refresh_token,
+    };
   }
 
   @Post('login')
@@ -98,14 +135,22 @@ export class AuthController {
   async signIn(
     @Body() data: LoginDto,
     @Res({ passthrough: true }) res: Response,
-  ): Promise<AuthDTO> {
+  ): Promise<LoginResponseDTO> {
     const tokens = await this.authService.login(data.email, data.password);
     this.setAccessTokenCookie(
       res,
       tokens.access_token,
       this.authConfiguration.jwtDurationMs,
     );
-    return { access_token: tokens.access_token };
+    this.setRefreshTokenCookie(
+      res,
+      tokens.refresh_token,
+      this.authConfiguration.jwtRefreshDurationMs,
+    );
+    return {
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+    };
   }
 
   @Post('logout')
@@ -116,26 +161,29 @@ export class AuthController {
   ): Promise<void> {
     await this.authService.logout(req.user.sub);
     this.clearAccessTokenCookie(res);
+    this.clearRefreshTokenCookie(res);
   }
 
   @Patch('change-password')
-  @UsePipes(ChangePassValidationPipe)
   @HttpCode(HttpStatus.NO_CONTENT)
   async changePassword(
-    @Req() req: RequestWithUser,
-    @Body() data: ChangePasswordDTO,
+    @Cookie(ACCESS_TOKEN_COOKIE) a_token: string,
+    @Res({ passthrough: true }) res: Response,
+    @Body(ChangePassValidationPipe) data: ChangePasswordDTO,
   ): Promise<void> {
     await this.authService.changePassword(
-      req.user.sub,
+      a_token,
       data.currentPassword,
       data.newPassword,
     );
+    this.clearAccessTokenCookie(res);
+    this.clearRefreshTokenCookie(res);
   }
 
   @Get('google')
   @Public()
   async googleAuth(@Res() res: Response): Promise<void> {
-    const { url } = await this.OAuthGoogleService.createAuthRedirectUrl();
+    const { url } = await this.oauthService.createAuthRedirectUrl();
     res.redirect(url);
   }
 
@@ -146,43 +194,49 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
     @Query('code') code?: string,
     @Query('state') state?: string,
-  ): Promise<AuthDTO> {
+  ): Promise<LoginResponseDTO> {
     if (!code || !state) {
       throw new UnauthorizedException('Missing code or state');
     }
 
-    // Optional linking: if user already authenticated via cookie, link instead of creating a new user.
-    let linkingUserId: string | undefined;
-    const accessToken = (req as any).cookies?.access_token as
-      | string
-      | undefined;
-    if (accessToken) {
-      try {
-        const payload = this.tokenService.verifyAccess(
-          accessToken,
-        ) as TokenPayload;
-        linkingUserId = payload.sub;
-      } catch {
-        linkingUserId = undefined;
-      }
-    }
-
-    const tokens = await this.OAuthGoogleService.handleCallback({
+    const tokens = await this.oauthService.handleCallback({
       code,
       state,
-      linkingUserId,
     });
 
-    this.setAccessTokenCookie(res, tokens.token, tokens.expiresIn);
-    return { access_token: tokens.token };
+    this.setAccessTokenCookie(
+      res,
+      tokens.access_token,
+      this.authConfiguration.jwtDurationMs,
+    );
+    this.setRefreshTokenCookie(
+      res,
+      tokens.refresh_token,
+      this.authConfiguration.jwtRefreshDurationMs,
+    );
+    return {
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+    };
   }
 
   @Public()
   @Post('refresh')
   async refreshToken(
-    @Res() res: Response,
-    @Cookie(ACCESS_TOKEN_COOKIE) a_token: string,
+    @Res({ passthrough: true }) res: Response,
+    @Cookie(REFRESH_TOKEN_COOKIE) refreshToken: string,
   ): Promise<RefreshDto> {
-    return await this.authService.refresh(a_token);
+    const tokens = await this.authService.refresh(refreshToken);
+    this.setAccessTokenCookie(
+      res,
+      tokens.access_token,
+      this.authConfiguration.jwtDurationMs,
+    );
+    this.setRefreshTokenCookie(
+      res,
+      tokens.refresh_token,
+      this.authConfiguration.jwtRefreshDurationMs,
+    );
+    return tokens;
   }
 }

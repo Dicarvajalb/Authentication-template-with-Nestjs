@@ -1,3 +1,8 @@
+import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { config as loadEnv } from 'dotenv';
+
 const DEFAULT_NODE_ENV = 'development';
 
 export function getNodeEnv(): string {
@@ -6,6 +11,25 @@ export function getNodeEnv(): string {
 
 export function getEnvFilePaths(nodeEnv = getNodeEnv()): string[] {
   return [`.env.${nodeEnv}.local`, `.env.${nodeEnv}`, '.env.local', '.env'];
+}
+
+export function loadEnvFiles(nodeEnv = getNodeEnv()): void {
+  for (const envFile of getEnvFilePaths(nodeEnv)) {
+    const envPath = resolve(process.cwd(), envFile);
+    if (existsSync(envPath)) {
+      loadEnv({ path: envPath, override: false });
+    }
+  }
+}
+
+export function getRequiredFileContents(path: string): string {
+  const resolvedPath = resolve(process.cwd(), path);
+
+  if (!existsSync(resolvedPath)) {
+    throw new Error(`Required file ${resolvedPath} was not found`);
+  }
+
+  return readFileSync(resolvedPath, 'utf8');
 }
 
 export function getRequiredString(

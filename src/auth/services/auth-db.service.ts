@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { UserEntity } from 'src/user/interfaces/user.entities';
 import type {
   AuthDBI,
   LoginAttemptSnapshot,
@@ -9,6 +10,44 @@ import { JWTToken, TokenType } from '../interfaces/auth.entities';
 @Injectable()
 export class AuthDBService implements AuthDBI {
   constructor(private readonly prisma: PrismaService) {}
+
+  async createUserWithTokens(data: {
+    user: UserEntity;
+    accessToken: JWTToken;
+    refreshToken: JWTToken;
+  }): Promise<UserEntity> {
+    const createdUser = await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          id: data.user.id,
+          email: data.user.email,
+          username: data.user.username,
+          passwordHash: data.user.password,
+        },
+      });
+
+      await tx.jWTToken.create({
+        data: {
+          ...data.accessToken,
+        },
+      });
+
+      await tx.jWTToken.create({
+        data: {
+          ...data.refreshToken,
+        },
+      });
+
+      return user;
+    });
+
+    return {
+      id: createdUser.id,
+      email: createdUser.email,
+      username: createdUser.username,
+      password: createdUser.passwordHash || '',
+    };
+  }
 
   async findLoginAttemptByUserId(
     userId: string,
@@ -43,12 +82,6 @@ export class AuthDBService implements AuthDBI {
     });
   }
 
-  async deleteAllRefreshTokensForUser(userId: string): Promise<void> {
-    await this.prisma.jWTToken.deleteMany({
-      where: { userId },
-    });
-  }
-
   async saveToken(token: JWTToken): Promise<void> {
     await this.prisma.jWTToken.create({
       data: {
@@ -61,11 +94,12 @@ export class AuthDBService implements AuthDBI {
     newRevoked: boolean,
   ): Promise<void> {
     await this.prisma.jWTToken.updateMany({
-      where: { jti: userId },
+      where: { userId },
       data: {
         revoked: newRevoked,
       },
     });
+    return;
   }
   async findToken(id: string): Promise<JWTToken> {
     const storedToken = await this.prisma.jWTToken.findUniqueOrThrow({
@@ -85,7 +119,13 @@ export class AuthDBService implements AuthDBI {
     newToken: JWTToken,
   ): Promise<void> {
     await this.prisma.$transaction([
-      this.prisma.jWTToken.delete({ where: { jti: oldJti } }),
+      this.prisma.jWTToken.update({
+        where: { jti: oldJti },
+        data: {
+          revoked: true,
+          replacedByJti: newToken.jti,
+        },
+      }),
       this.prisma.jWTToken.create({ data: { ...newToken } }),
     ]);
   }

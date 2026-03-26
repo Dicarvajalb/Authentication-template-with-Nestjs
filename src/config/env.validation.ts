@@ -5,7 +5,8 @@ export function validate(config: Record<string, unknown>): Record<string, unknow
   const env = config as NodeJS.ProcessEnv;
 
   getRequiredString(env, 'DATABASE_URL');
-  getRequiredString(env, 'JWT_SECRET');
+  getRequiredString(env, 'JWT_PRIVATE_KEY');
+  getRequiredString(env, 'JWT_PUBLIC_KEY');
   getRequiredString(env, 'PASSWORD_REGEX');
   getRequiredString(env, 'PASSWORD_ERROR_MESSAGE');
   getRequiredString(env, 'GOOGLE_CLIENT_ID');

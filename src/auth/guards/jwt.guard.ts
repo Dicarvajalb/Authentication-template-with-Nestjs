@@ -1,21 +1,21 @@
 import {
   CanActivate,
   ExecutionContext,
+  Inject,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { TokenPayload } from '../interfaces/auth.entities';
+import { AUTH_DB, type AuthDBI } from '../interfaces/auth.utilities';
 import { AuthTokenService } from '../services/auth-token.service';
 import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from 'src/common/decorators/public';
 
 /**
- * Guard that extracts the JWT from a secure cookie (access_token) or from
- * the Authorization: Bearer header, verifies it, and attaches the payload to request.user.
- * Cookie is preferred when present so browser-based clients work without sending the token in headers.
+ * Guard that extracts the JWT from the secure access_token cookie, verifies it,
+ * checks revocation state in storage, and attaches the payload to request.user.
  */
-export const JWT_GUARD = Symbol('JWT_GUARD');
 
 @Injectable()
 export class JwtGuard implements CanActivate {
@@ -23,6 +23,7 @@ export class JwtGuard implements CanActivate {
 
   constructor(
     private readonly tokenService: AuthTokenService,
+    @Inject(AUTH_DB) private readonly authDb: AuthDBI,
     private reflector: Reflector,
   ) {}
 
@@ -35,30 +36,26 @@ export class JwtGuard implements CanActivate {
       return true;
     }
     const request = context.switchToHttp().getRequest<Request>();
-    const token =
-      request.cookies?.[JwtGuard.COOKIE_NAME] ??
-      this.getTokenFromBearer(request.headers.authorization);
+    const token = request.cookies?.[JwtGuard.COOKIE_NAME];
     if (!token) {
-      throw new UnauthorizedException(
-        'Missing or invalid Authorization header or cookie',
-      );
-    }
-    if (this.tokenService.decodeToken(token).type !== 'access') {
-      throw new UnauthorizedException('Access denied');
+      throw new UnauthorizedException('Missing access token cookie');
     }
     try {
       const payload = this.tokenService.verifyAccess(token) as TokenPayload;
+      if (payload.type !== 'access') {
+        throw new UnauthorizedException('Access denied');
+      }
+      if (!payload.jti) {
+        throw new UnauthorizedException('Invalid or expired token');
+      }
+      const storedToken = await this.authDb.findToken(payload.jti);
+      if (storedToken.revoked) {
+        throw new UnauthorizedException('Token revoked');
+      }
       (request as Request & { user: TokenPayload }).user = payload;
       return true;
     } catch {
       throw new UnauthorizedException('Invalid or expired token');
     }
-  }
-
-  private getTokenFromBearer(authHeader?: string): string | undefined {
-    if (authHeader?.startsWith('Bearer ')) {
-      return authHeader.slice(7);
-    }
-    return undefined;
   }
 }

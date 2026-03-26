@@ -7,17 +7,19 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
-import { randomUUID, createPublicKey } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
+import { OAuth2Client } from 'google-auth-library';
 import { firstValueFrom } from 'rxjs';
-import authConfig from 'src/config/auth.config';
 import oauthConfig from 'src/config/oauth.config';
 import { PrismaService } from 'src/prisma/prisma.service';
-import type { TokenPayload } from '../interfaces/auth.entities';
-import { AuthTokenService } from './auth-token.service';
-import { OAuth2Client } from 'google-auth-library';
-
-const GoogleClient = new OAuth2Client();
+import type {
+  OAuthCallbackArgs,
+  OAuthCallbackResult,
+  OAuthRedirect,
+} from '../interfaces/oauth.entities';
+import type { OAuthServiceI } from '../interfaces/oauth.utilities';
+import { AuthService } from './auth.service';
+const googleClient = new OAuth2Client();
 type GoogleTokenResponse = {
   access_token: string;
   expires_in: number;
@@ -33,18 +35,8 @@ type GoogleUserInfo = {
   name?: string;
 };
 
-type GoogleJwks = {
-  keys: Array<{
-    kid: string;
-    kty: string;
-    alg?: string;
-    use?: string;
-    x5c?: string[];
-  }>;
-};
-
 @Injectable()
-export class OAuthGoogleService {
+export class OAuthGoogleService implements OAuthServiceI {
   private static readonly STATE_TTL_MS = 10 * 60 * 1000;
   private static readonly GOOGLE_AUTH_URL =
     'https://accounts.google.com/o/oauth2/v2/auth';
@@ -52,21 +44,16 @@ export class OAuthGoogleService {
     'https://oauth2.googleapis.com/token';
   private static readonly GOOGLE_USERINFO_URL =
     'https://www.googleapis.com/oauth2/v3/userinfo';
-  private static readonly GOOGLE_CERTS_URL =
-    'https://www.googleapis.com/oauth2/v3/certs';
 
   constructor(
     private readonly http: HttpService,
     private readonly prisma: PrismaService,
-    private readonly jwt: JwtService,
-    private readonly tokenService: AuthTokenService,
+    private readonly authService: AuthService,
     @Inject(oauthConfig.KEY)
     private readonly oauthConfiguration: ConfigType<typeof oauthConfig>,
-    @Inject(authConfig.KEY)
-    private readonly authConfiguration: ConfigType<typeof authConfig>,
   ) {}
   //Build the redirect url with Client ID, client secret and callback endpoint
-  public async createAuthRedirectUrl(): Promise<{ url: string }> {
+  public async createAuthRedirectUrl(): Promise<OAuthRedirect> {
     const clientId = this.oauthConfiguration.googleClientId;
     const callbackUrl = this.oauthConfiguration.googleCallbackUrl;
 
@@ -92,11 +79,9 @@ export class OAuthGoogleService {
     };
   }
 
-  public async handleCallback(args: {
-    code: string;
-    state: string;
-    linkingUserId?: string;
-  }): Promise<{ token: string; expiresIn: number }> {
+  public async handleCallback(
+    args: OAuthCallbackArgs,
+  ): Promise<OAuthCallbackResult> {
     await this.validateAndConsumeState(args.state);
 
     const tokenRes = await this.exchangeCodeForTokens(args.code);
@@ -111,19 +96,9 @@ export class OAuthGoogleService {
     const email = userInfo.email ?? idClaims.email;
     const name = userInfo.name ?? idClaims.name ?? null;
 
-    const user = args.linkingUserId
-      ? await this.linkToExistingUser(args.linkingUserId, { sub, email, name })
-      : await this.findOrCreateUser({ sub, email, name });
+    const user = await this.findOrCreateUser({ sub, email, name });
 
-    const payload: TokenPayload = {
-      sub: user.id,
-      type: 'access',
-    };
-
-    return {
-      token: this.tokenService.signAccess(payload),
-      expiresIn: this.authConfiguration.jwtDurationMs,
-    };
+    return this.authService.issueTokenPairForUser(user.id);
   }
 
   private async validateAndConsumeState(state: string): Promise<void> {
@@ -189,27 +164,16 @@ export class OAuthGoogleService {
 
   private async verifyGoogleIdToken(idToken: string): Promise<any> {
     const clientId = this.oauthConfiguration.googleClientId;
-
     try {
-      const ticket = await GoogleClient.verifyIdToken({
+      const ticket = await googleClient.verifyIdToken({
         idToken,
         audience: clientId,
       });
 
-      return ticket.getPayload(); // This is the verified claims (email, sub, etc.)
-    } catch (error) {
+      return ticket.getPayload();
+    } catch {
       throw new UnauthorizedException('Invalid Google ID token');
     }
-  }
-
-  private async fetchGoogleCerts(): Promise<GoogleJwks> {
-    const { data } = await firstValueFrom(
-      this.http.get<GoogleJwks>(OAuthGoogleService.GOOGLE_CERTS_URL),
-    );
-    if (!data?.keys?.length) {
-      throw new UnauthorizedException('Google certs unavailable');
-    }
-    return data;
   }
 
   private async findOrCreateUser(profile: {

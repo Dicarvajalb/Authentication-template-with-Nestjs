@@ -4,9 +4,8 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
-import { ProfilesModule } from './profiles/profiles.module';
 import { UserModule } from './user/user.module';
-import { JWT_GUARD, JwtGuard } from './auth/guards/jwt.guard';
+import { JwtGuard } from './auth/guards/jwt.guard';
 import appConfig from './config/app.config';
 import authConfig from './config/auth.config';
 import databaseConfig from './config/database.config';
@@ -19,7 +18,6 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 @Module({
   imports: [
-    ProfilesModule,
     AuthModule,
     UserModule,
     PrismaModule,
@@ -48,7 +46,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
   controllers: [AppController],
   providers: [
     AppService,
-    { provide: JWT_GUARD, useClass: JwtGuard },
+    { provide: APP_GUARD, useClass: JwtGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
 })

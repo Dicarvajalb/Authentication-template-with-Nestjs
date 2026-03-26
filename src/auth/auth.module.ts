@@ -7,6 +7,7 @@ import { PrismaModule } from 'src/prisma/prisma.module';
 import { UserModule } from 'src/user/user.module';
 import { RevokedCronToken } from './cron/revoked';
 import { AUTH_DB } from './interfaces/auth.utilities';
+import { OAUTH_SERVICE } from './interfaces/oauth.utilities';
 import { AuthController } from './auth.controller';
 import { LoginValidationPipe } from './pipes/login.pipe';
 import { RegisterValidationPipe } from './pipes/register.pipe';
@@ -20,7 +21,7 @@ import authConfig from 'src/config/auth.config';
 
 @Module({
   controllers: [AuthController],
-  exports: [AuthTokenService],
+  exports: [AuthTokenService, AUTH_DB, OAUTH_SERVICE],
   providers: [
     AuthService,
     AuthTokenService,
@@ -29,6 +30,7 @@ import authConfig from 'src/config/auth.config';
     OAuthGoogleService,
     RevokedCronToken,
     { provide: AUTH_DB, useClass: AuthDBService },
+    { provide: OAUTH_SERVICE, useExisting: OAuthGoogleService },
     LoginValidationPipe,
     RegisterValidationPipe,
     ChangePassValidationPipe,
@@ -45,9 +47,9 @@ import authConfig from 'src/config/auth.config';
       inject: [authConfig.KEY],
       useFactory: (config: ConfigType<typeof authConfig>) => {
         return {
-          secret: config.jwtSecret,
+          publicKey: config.jwtPublicKey,
+          privateKey: config.jwtPrivateKey,
           signOptions: {
-            expiresIn: config.jwtDurationMs,
             algorithm: 'RS256',
           },
         };

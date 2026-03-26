@@ -11,6 +11,11 @@ export interface LoginAttemptSnapshot {
 }
 
 export interface AuthDBI {
+  createUserWithTokens(data: {
+    user: UserEntity;
+    accessToken: JWTToken;
+    refreshToken: JWTToken;
+  }): Promise<UserEntity>;
   findLoginAttemptByUserId(
     userId: string,
   ): Promise<LoginAttemptSnapshot | null>;
@@ -18,7 +23,6 @@ export interface AuthDBI {
     userId: string,
     data: { failedCount: number; lockedUntil: Date | null },
   ): Promise<void>;
-  deleteAllRefreshTokensForUser(userId: string): Promise<void>;
 
   findToken(id: string): Promise<JWTToken>;
   saveToken(token: JWTToken): Promise<void>;
@@ -33,9 +37,9 @@ export interface AuthDBI {
 export interface AuthServiceI {
   register(
     username: string,
-    email: string,
     password: string,
-  ): Promise<{ user: UserEntity; tokens: AuthTokens }>;
+    email: string,
+  ): Promise<{ tokens: AuthTokens }>;
   login(email: string, password: string): Promise<AuthTokens>;
   refresh(refreshToken: string): Promise<AuthTokens>;
   logout(userId: string): Promise<void>;
@@ -51,8 +55,7 @@ export interface AuthPasswordServiceI {
 }
 export interface AuthTokenServiceI {
   signAccess(payload: TokenPayload): string;
-  //signRefresh(payload: TokenPayload): string;
-  verifyAccess(token: string, expiresInMls?: number): TokenPayload;
-  //verifyRefresh(token: string): TokenPayload;
-  //refreshTtlMs(): number;
+  signRefresh(payload: TokenPayload): string;
+  verifyAccess(token: string): TokenPayload;
+  verifyRefresh(token: string): TokenPayload;
 }

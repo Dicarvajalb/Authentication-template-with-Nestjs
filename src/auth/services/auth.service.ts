@@ -7,7 +7,6 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
-import { Prisma } from 'src/generated/prisma/client';
 import authConfig from 'src/config/auth.config';
 import { UserCRUDService } from 'src/user/services/user-crud.service';
 import { UserEntity } from 'src/user/interfaces/user.entities';
@@ -36,6 +35,94 @@ export class AuthService implements AuthServiceI {
     private readonly authConfiguration: ConfigType<typeof authConfig>,
     @Inject(AUTH_DB) private readonly authDb: AuthDBI,
   ) {}
+
+  private async issueTokenPair(userId: string): Promise<AuthTokens> {
+    const accessTokenRecord: JWTToken = {
+      userId,
+      type: 'access',
+      expiresAt: new Date(Date.now() + this.authConfiguration.jwtDurationMs),
+      jti: randomUUID(),
+    };
+    await this.authDb.saveToken(accessTokenRecord);
+
+    const accessTokenPayload: TokenPayload = {
+      sub: accessTokenRecord.userId,
+      exp: Math.floor(accessTokenRecord.expiresAt.getTime() / 1000),
+      jti: accessTokenRecord.jti,
+      type: 'access',
+    };
+
+    const refreshTokenRecord: JWTToken = {
+      userId,
+      type: 'refresh',
+      expiresAt: new Date(
+        Date.now() + this.authConfiguration.jwtRefreshDurationMs,
+      ),
+      jti: randomUUID(),
+    };
+    await this.authDb.saveToken(refreshTokenRecord);
+
+    const refreshTokenPayload: TokenPayload = {
+      sub: refreshTokenRecord.userId,
+      exp: Math.floor(refreshTokenRecord.expiresAt.getTime() / 1000),
+      jti: refreshTokenRecord.jti,
+      type: 'refresh',
+    };
+
+    return {
+      access_token: this.tokenService.signAccess(accessTokenPayload),
+      refresh_token: this.tokenService.signRefresh(refreshTokenPayload),
+    };
+  }
+
+  private buildTokenPair(userId: string): {
+    accessTokenRecord: JWTToken;
+    refreshTokenRecord: JWTToken;
+    tokens: AuthTokens;
+  } {
+    const accessTokenRecord: JWTToken = {
+      userId,
+      type: 'access',
+      expiresAt: new Date(Date.now() + this.authConfiguration.jwtDurationMs),
+      jti: randomUUID(),
+    };
+
+    const accessTokenPayload: TokenPayload = {
+      sub: accessTokenRecord.userId,
+      exp: Math.floor(accessTokenRecord.expiresAt.getTime() / 1000),
+      jti: accessTokenRecord.jti,
+      type: 'access',
+    };
+
+    const refreshTokenRecord: JWTToken = {
+      userId,
+      type: 'refresh',
+      expiresAt: new Date(
+        Date.now() + this.authConfiguration.jwtRefreshDurationMs,
+      ),
+      jti: randomUUID(),
+    };
+
+    const refreshTokenPayload: TokenPayload = {
+      sub: refreshTokenRecord.userId,
+      exp: Math.floor(refreshTokenRecord.expiresAt.getTime() / 1000),
+      jti: refreshTokenRecord.jti,
+      type: 'refresh',
+    };
+
+    return {
+      accessTokenRecord,
+      refreshTokenRecord,
+      tokens: {
+        access_token: this.tokenService.signAccess(accessTokenPayload),
+        refresh_token: this.tokenService.signRefresh(refreshTokenPayload),
+      },
+    };
+  }
+
+  public issueTokenPairForUser(userId: string): Promise<AuthTokens> {
+    return this.issueTokenPair(userId);
+  }
 
   public async login(email: string, password: string): Promise<AuthTokens> {
     const user = await this.userService.findByUsernameOrEmail(undefined, email);
@@ -77,95 +164,46 @@ export class AuthService implements AuthServiceI {
       lockedUntil: null,
     });
 
-    const access_token: TokenPayload = {
-      sub: user.id,
-      type: 'access',
-    };
-
-    const refresh_token_internal: JWTToken = {
-      userId: user.id,
-      type: 'refresh',
-      expiresAt: new Date(
-        Date.now() + this.authConfiguration.jwtRefreshDurationMs,
-      ),
-      jti: randomUUID(),
-    };
-    this.authDb.saveToken(refresh_token_internal);
-
-    const refresh_token_external: TokenPayload = {
-      sub: refresh_token_internal.userId,
-      exp: refresh_token_internal.expiresAt.getTime(),
-      jti: refresh_token_internal.jti,
-      type: 'refresh',
-    };
-
-    return {
-      access_token: this.tokenService.signAccess(access_token),
-      refresh_token: this.tokenService.signAccess(refresh_token_external),
-    };
+    return this.issueTokenPair(user.id);
   }
 
   public async register(
     username: string,
     password: string,
     email: string,
-  ): Promise<{ user: UserEntity; tokens: AuthTokens }> {
-    try {
-      const existing = await this.userService.findByUsernameOrEmail(
-        username,
-        email,
-      );
+  ): Promise<{ tokens: AuthTokens }> {
+    const existing = await this.userService.findByUsernameOrEmail(
+      username,
+      email,
+    );
 
-      if (existing) {
-        // Generic message — do NOT reveal whether the username or email matched.
-        // (OWASP A07 — no user enumeration)
-        throw new ConflictException(
-          'User with provided credentials already exists',
-        );
-      }
-      const hashedPassword = await this.passwordService.hash(password);
-      const user = await this.userService.createUser(
-        username,
-        email,
-        hashedPassword,
-      );
-
-      console.log('⚙️ ~ AuthService ~ register ~ user:', user);
-
-      if (!user) {
-        throw new InternalServerErrorException('User could not be created');
-      }
-
-      const payload: TokenPayload = {
-        sub: user.id, // safe for BigInt
-        type: 'access',
-      };
-
-      const tokens: AuthTokens = {
-        access_token: this.tokenService.signAccess(payload),
-        refresh_token: '',
-      };
-
-      return { user, tokens };
-    } catch (error: unknown) {
-      console.log('⚙️ ~ AuthService ~ register ~ error:', error);
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002' // Prisma unique constraint
-      ) {
-        throw new ConflictException(
-          'User with provided credentials already exists',
-        );
-      }
-
-      if (error instanceof HttpException) {
-        throw error;
-      }
-
-      throw new InternalServerErrorException(
-        'Unexpected error during registration',
+    if (existing) {
+      throw new ConflictException(
+        'User with provided credentials already exists',
       );
     }
+
+    const hashedPassword = await this.passwordService.hash(password);
+    const userId = randomUUID();
+    const { accessTokenRecord, refreshTokenRecord, tokens } =
+      this.buildTokenPair(userId);
+
+    const user = await this.authDb.createUserWithTokens({
+      user: {
+        id: userId,
+        username,
+        email,
+        password: hashedPassword,
+      },
+      accessToken: accessTokenRecord,
+      refreshToken: refreshTokenRecord,
+    });
+
+    if (!user) {
+      throw new InternalServerErrorException('User could not be created');
+    }
+
+    return { tokens };
   }
 
   public async logout(token: string): Promise<void> {
@@ -178,14 +216,20 @@ export class AuthService implements AuthServiceI {
    * (via AuthPasswordService.verify), then updates hash and revokes all refresh tokens (AUTH-12, AUTH-13).
    */
   public async changePassword(
-    userId: string,
+    token: string,
     currentPassword: string,
     newPassword: string,
   ): Promise<void> {
-    const user = await this.userService.findById(userId);
+    if (currentPassword === newPassword) {
+      throw new UnauthorizedException('Same credentials');
+    }
+    const decodedToken = this.tokenService.verifyAccess(token);
+    const user = await this.userService.findById(decodedToken.sub);
+
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
+
     if (!user.password) {
       throw new UnauthorizedException(
         'Account has no password (e.g. Google-only). Cannot change password.',
@@ -200,11 +244,11 @@ export class AuthService implements AuthServiceI {
     }
     const newHash = await this.passwordService.hash(newPassword);
     await this.userService.updateUser(user.username, user.email, newHash);
-    await this.authDb.deleteAllRefreshTokensForUser(userId);
+    await this.authDb.updateAllRevokedByUserId(user.id, true);
   }
 
   public async refresh(refreshToken: string): Promise<AuthTokens> {
-    const validatedToken = this.tokenService.verifyAccess(refreshToken);
+    const validatedToken = this.tokenService.verifyRefresh(refreshToken);
     if (!validatedToken.jti) {
       throw new UnauthorizedException();
     }
@@ -222,31 +266,45 @@ export class AuthService implements AuthServiceI {
       throw new UnauthorizedException('Unauthorized: Token reused');
     }
 
-    const newAccessPayload: TokenPayload = {
-      sub: storedToken.userId,
+    const accessTokenRecord: JWTToken = {
+      userId: storedToken.userId,
       type: 'access',
-    };
-    const newAccessToken: string = this.tokenService.signAccess(
-      newAccessPayload,
-      this.authConfiguration.jwtRefreshDurationMs,
-    );
-    const newRefreshPayload: TokenPayload = {
-      sub: storedToken.userId,
-      type: 'access',
+      expiresAt: new Date(Date.now() + this.authConfiguration.jwtDurationMs),
       jti: randomUUID(),
     };
-    const newRefreshToken: string = this.tokenService.signAccess(
-      newRefreshPayload,
-      this.authConfiguration.jwtRefreshDurationMs,
-    );
-    this.authDb.revokeAndSaveTokenTransaction(storedToken.jti, {
+    await this.authDb.saveToken(accessTokenRecord);
+
+    const accessPayload: TokenPayload = {
+      sub: accessTokenRecord.userId,
+      exp: Math.floor(accessTokenRecord.expiresAt.getTime() / 1000),
+      jti: accessTokenRecord.jti,
+      type: 'access',
+    };
+
+    const refreshTokenRecord: JWTToken = {
       jti: randomUUID(),
-      type: storedToken.type as TokenType,
+      type: 'refresh',
       userId: storedToken.userId,
       expiresAt: new Date(
         Date.now() + this.authConfiguration.jwtRefreshDurationMs,
       ),
-    });
-    return { access_token: newAccessToken, refresh_token: newRefreshToken };
+    };
+
+    await this.authDb.revokeAndSaveTokenTransaction(
+      storedToken.jti,
+      refreshTokenRecord,
+    );
+
+    const refreshPayload: TokenPayload = {
+      sub: refreshTokenRecord.userId,
+      exp: Math.floor(refreshTokenRecord.expiresAt.getTime() / 1000),
+      jti: refreshTokenRecord.jti,
+      type: 'refresh',
+    };
+
+    return {
+      access_token: this.tokenService.signAccess(accessPayload),
+      refresh_token: this.tokenService.signRefresh(refreshPayload),
+    };
   }
 }
